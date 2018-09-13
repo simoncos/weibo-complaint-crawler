@@ -110,7 +110,7 @@ def getComplaintDetails(driver):
 
             complaint_count = len(complaints)
             if complaint_count == 2:
-                print('write {} complaints to mongo'.format(complaint_count))
+                print('Writing {} complaints to mongo...'.format(complaint_count))
                 mongo.update(complaints)
                 complaints = []
 

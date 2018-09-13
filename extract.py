@@ -141,7 +141,4 @@ def extractLooks(driver):
         crawled_looks.append([looker_url, looker_name])
     return crawled_looks
 
-# TODO: 4 reporters click page: http://service.account.weibo.com/show?rid=K1CaP8wpk7qkm
-# TODO: 14 reporters 11 reporter: http://service.account.weibo.com/show?rid=K1CaP8wtl664d
-# TODO: deleted reports: http://service.account.weibo.com/show?rid=K1CaP8wpk7qcj
 # TODO: timeout
