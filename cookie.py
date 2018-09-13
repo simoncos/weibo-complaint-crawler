@@ -1,7 +1,8 @@
 import time
 from selenium import webdriver
 
-from weibo import getChrome
+from driver import getChrome
+
 
 class Cookie(object):
     url = 'http://weibo.com/login.php'

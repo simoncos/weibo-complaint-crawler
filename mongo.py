@@ -14,3 +14,6 @@ class MongoHelper:
                 self.collection.replace_one({'url': i['url']}, i, upsert=True)
         else:
             self.collection.replace_one({'url': data['url']}, data, upsert=True)
+
+    def getCrawledUrls(self):
+        return [i['url'] for i in self.collection.find({})]
