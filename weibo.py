@@ -57,14 +57,18 @@ def getComplaintUrls(driver):
         next.click()
         page_count += 1
 
-def getComplaintDetail(url, driver):
+def getComplaintDetail(url, driver, retry=0):
     try:
         driver.get(url)
     except TimeoutException: # selenium exception type
-        print('>>>>>>timeout, retrying')
-        driver = getChrome(headless=True)
-        login(driver)
-        return getComplaintDetail(url, driver)
+        if retry >= 2:
+            print('TimeoutException occurs in {} Retries, Raise'.format(retry))
+        else:
+            retry += 1
+            print('>>>>>>Timeout, retrying {}...'.format(retry))
+            # driver = getChrome(headless=True)
+            # login(driver)
+            return getComplaintDetail(url, driver, retry)
 
     title = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[1]/div[2]/h2').text
 
@@ -113,7 +117,7 @@ def getComplaintDetails(driver):
                 print(complaint)
                 complaints.append({'url': url, **complaint})
             except:
-                print('>>>>>>Got Exception: {}'.format(url, traceback.format_exc()))
+                print('>>>>>>Got Exception: {}'.format(traceback.format_exc()))
 
             complaint_count = len(complaints)
             if complaint_count == 2:

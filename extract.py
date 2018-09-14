@@ -91,7 +91,8 @@ def extractReports(driver, crawled_reporters):
         try:
             next_page = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[4]/div[1]/div/div/div[2]/div/a[@class="next"]')
             next_page.click()
-            print('Next Reporter Page')
+            time.sleep(1)
+            print('Next Reports Page')
         except:
             break
 
