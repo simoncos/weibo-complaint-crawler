@@ -118,7 +118,12 @@ def extractRumor(driver):
     rumor_time_text = rumor.find_element_by_xpath('p[@class="publisher"]').text
     if rumor_time_text != '被举报微博':
         rumor_time = rumor_time_text.split('被举报微博 发布时间：')[1].split(' | 原文')[0]
-        rumor_url = rumor.find_element_by_xpath('p[@class="publisher"]/a').get_attribute('href')
+
+        try:
+            rumor_url = rumor.find_element_by_xpath('p[@class="publisher"]/a').get_attribute('href')
+        except:
+            print('Can not find original url of rumor')
+            rumor_url = ''
         rumor_text = rumor.find_element_by_xpath('div[@class="feed bg_orange2 clearfix"]/div[@class="con"]').text
         rumorer_url = rumor.find_element_by_xpath(
             'div[@class="feed bg_orange2 clearfix"]/div[@class="con"]/a').get_attribute('href')

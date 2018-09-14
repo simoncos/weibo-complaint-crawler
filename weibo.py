@@ -112,7 +112,7 @@ def getComplaintDetails(driver):
                 print('Skip Crawled Url')
                 continue
             try:
-                time.sleep(2)
+                time.sleep(1)
                 complaint = getComplaintDetail(url, driver)
                 print(complaint)
                 complaints.append({'url': url, **complaint})
@@ -120,7 +120,7 @@ def getComplaintDetails(driver):
                 print('>>>>>>Got Exception: {}'.format(traceback.format_exc()))
 
             complaint_count = len(complaints)
-            if complaint_count == 2:
+            if complaint_count == 10:
                 print('>>>>>>Writing {} complaints to mongo...'.format(complaint_count))
                 mongo.update(complaints)
                 complaints = []
