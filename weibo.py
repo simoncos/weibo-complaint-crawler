@@ -5,6 +5,7 @@ from driver import getChrome
 from conf import ACCOUNT, PWD
 from mongo import MongoHelper
 from extract import *
+from selenium.common.exceptions import TimeoutException
 
 def login(driver):
     # Login
@@ -57,7 +58,13 @@ def getComplaintUrls(driver):
         page_count += 1
 
 def getComplaintDetail(url, driver):
-    driver.get(url)
+    try:
+        driver.get(url)
+    except TimeoutException: # selenium exception type
+        print('>>>>>>timeout, retrying')
+        driver = getChrome(headless=True)
+        login(driver)
+        return getComplaintDetail(url, driver)
 
     title = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[1]/div[2]/h2').text
 
@@ -96,7 +103,7 @@ def getComplaintDetails(driver):
                 print('>>>>All Complaints Crawling Completed!')
                 break
 
-            print('\nComplaint {}, URL: {}'.format(page_count, url))
+            print('\n>>>>>>Complaint {}, URL: {}'.format(page_count, url))
             if url in crawled_urls:
                 print('Skip Crawled Url')
                 continue
@@ -106,11 +113,11 @@ def getComplaintDetails(driver):
                 print(complaint)
                 complaints.append({'url': url, **complaint})
             except:
-                print('got exception for url: {}, msg: {}'.format(url, traceback.format_exc()))
+                print('>>>>>>Got Exception: {}'.format(url, traceback.format_exc()))
 
             complaint_count = len(complaints)
             if complaint_count == 2:
-                print('Writing {} complaints to mongo...'.format(complaint_count))
+                print('>>>>>>Writing {} complaints to mongo...'.format(complaint_count))
                 mongo.update(complaints)
                 complaints = []
 

@@ -1,6 +1,7 @@
 import traceback
 import time
 import re
+from selenium.common.exceptions import StaleElementReferenceException
 
 def extractReporter(driver):
     reporter = driver.find_element_by_xpath(
@@ -59,7 +60,7 @@ def extractReporters(driver):
                 time.sleep(1)  # if no sleep > 1s, cannot get all reporters
 
             except:
-                print(traceback.format_exc())
+                print('Reporter iter exception: {}'.format(traceback.format_exc()))
                 continue
 
     return crawled_reporters, actual_reporter_count
@@ -114,15 +115,19 @@ def extractRumor(driver):
     rumor = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[4]/div[2]/div/div/div/div')
     # TODO: handle deleted rumor weibo
     rumor_time_text = rumor.find_element_by_xpath('p[@class="publisher"]').text
-    rumor_time = rumor_time_text.split('被举报微博 发布时间：')[1].split(' | 原文')[0]
-    rumor_url = rumor.find_element_by_xpath('p[@class="publisher"]/a').get_attribute('href')
-    rumor_text = rumor.find_element_by_xpath('div[@class="feed bg_orange2 clearfix"]/div[@class="con"]').text
-    rumorer_url = rumor.find_element_by_xpath(
-        'div[@class="feed bg_orange2 clearfix"]/div[@class="con"]/a').get_attribute('href')
-    assert rumorer_url == crawled_rumor['rumorer_url']
-    crawled_rumor['rumor_time'] = rumor_time
-    crawled_rumor['rumor_url'] = rumor_url
-    crawled_rumor['rumor_text'] = rumor_text
+    if rumor_time_text != '被举报微博':
+        rumor_time = rumor_time_text.split('被举报微博 发布时间：')[1].split(' | 原文')[0]
+        rumor_url = rumor.find_element_by_xpath('p[@class="publisher"]/a').get_attribute('href')
+        rumor_text = rumor.find_element_by_xpath('div[@class="feed bg_orange2 clearfix"]/div[@class="con"]').text
+        rumorer_url = rumor.find_element_by_xpath(
+            'div[@class="feed bg_orange2 clearfix"]/div[@class="con"]/a').get_attribute('href')
+        assert rumorer_url == crawled_rumor['rumorer_url']
+        crawled_rumor['rumor_time'] = rumor_time
+        crawled_rumor['rumor_url'] = rumor_url
+        crawled_rumor['rumor_text'] = rumor_text
+    else:
+        print('Rumorer deleted rumor weibo')
+        pass
 
     return crawled_rumor
 
@@ -140,5 +145,3 @@ def extractLooks(driver):
         looker_name = look.find_element_by_xpath('a').get_attribute('title')
         crawled_looks.append([looker_url, looker_name])
     return crawled_looks
-
-# TODO: timeout
