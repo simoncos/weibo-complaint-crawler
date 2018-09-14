@@ -70,7 +70,10 @@ def getComplaintDetail(url, driver, retry=0):
             # login(driver)
             return getComplaintDetail(url, driver, retry)
 
-    title = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[1]/div[2]/h2').text
+    try:
+        title = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[1]/div[2]/h2').text
+    except:
+        title = '' # not necessary
 
     print('>>>> Begin extractReporters')
     reporters, actual_reporter_count = extractReporters(driver)
