@@ -26,11 +26,11 @@ def getComplaintUrls(driver):
     # Enter http://service.account.weibo.com
     driver.get('http://service.account.weibo.com/?type=5&status=4')
     page_count = 1
-    print('>>>>Begin Crawling Complaint Urls...')
+    print('>> Begin Crawling Complaint Urls...')
     while True:
         # TODO: if page_count > total, break
         # Iterate list in each page
-        print('>>>>>>Page: {}'.format(page_count))
+        print('>>>> Page: {}'.format(page_count))
         complaint_urls = []
         for info in driver.find_elements_by_xpath('//div[@id="pl_service_showcomplaint"]/table[@class="m_table"]'
                                                   '/tbody/tr[not(@class)]'):
@@ -49,7 +49,7 @@ def getComplaintUrls(driver):
             print('Next page not found')
             break
 
-        print('>>>>>>>>Writing to Files...')
+        print('>>>> Writing to Files...')
         with open('complaint_urls.txt', 'a') as f:
             f.write('\n'.join(complaint_urls) + '\n')
 
@@ -62,25 +62,25 @@ def getComplaintDetail(url, driver, retry=0):
         driver.get(url)
     except TimeoutException: # selenium exception type
         if retry >= 2:
-            print('TimeoutException occurs in {} Retries, Raise'.format(retry))
+            print('>>>> TimeoutException occurs in {} Retries, Raise'.format(retry))
         else:
             retry += 1
-            print('>>>>>>Timeout, retrying {}...'.format(retry))
+            print('>>>> Timeout, retrying {}...'.format(retry))
             # driver = getChrome(headless=True)
             # login(driver)
             return getComplaintDetail(url, driver, retry)
 
     title = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[1]/div[2]/h2').text
 
-    print('>>>>>>extractReporters')
+    print('>>>> Begin extractReporters')
     reporters, actual_reporter_count = extractReporters(driver)
-    print('>>>>>>extractReports')
+    print('>>>> Begin extractReports')
     reports = extractReports(driver, reporters)
-    print('>>>>>>extractRumor')
+    print('>>>> Begin extractRumor')
     rumor = extractRumor(driver)
-    print('>>>>>>extractOfficial')
+    print('>>>> Begin extractOfficial')
     official = extractOfficial(driver)
-    print('>>>>>>extractLooks')
+    print('>>>> Begin extractLooks')
     looks = extractLooks(driver)
 
     return {
@@ -94,7 +94,7 @@ def getComplaintDetail(url, driver, retry=0):
 
 def getComplaintDetails(driver):
     # TODO: get all crawled urls from mongo, if url in the list, continue
-    print('>>>>Begin Crawling Complaint Details...')
+    print('>>>> Begin Crawling Complaint Details...')
     mongo = MongoHelper()
     crawled_urls = mongo.getCrawledUrls()
     complaints = []
@@ -104,10 +104,10 @@ def getComplaintDetails(driver):
             page_count += 1
             url = f.readline().strip()
             if str(url) == '':
-                print('>>>>All Complaints Crawling Completed!')
+                print('>>>> All Complaints Crawling Completed!')
                 break
 
-            print('\n>>>>>>Complaint {}, URL: {}'.format(page_count, url))
+            print('\n>> Complaint {}, URL: {}'.format(page_count, url))
             if url in crawled_urls:
                 print('Skip Crawled Url')
                 continue
@@ -117,11 +117,11 @@ def getComplaintDetails(driver):
                 print(complaint)
                 complaints.append({'url': url, **complaint})
             except:
-                print('>>>>>>Got Exception: {}'.format(traceback.format_exc()))
+                print('>> Got Exception: {}'.format(traceback.format_exc()))
 
             complaint_count = len(complaints)
             if complaint_count == 10:
-                print('>>>>>>Writing {} complaints to mongo...'.format(complaint_count))
+                print('>> Writing {} complaints to mongo...'.format(complaint_count))
                 mongo.update(complaints)
                 complaints = []
 

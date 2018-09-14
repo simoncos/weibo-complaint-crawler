@@ -57,7 +57,7 @@ def extractReporters(driver):
 
                 next_reporter = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[2]/div[1]/div/div[1]/a')
                 next_reporter.click()
-                time.sleep(1)  # if no sleep > 1s, cannot get all reporters
+                time.sleep(0.5)
 
             except:
                 print('Reporter iter exception: {}'.format(traceback.format_exc()))
@@ -91,8 +91,8 @@ def extractReports(driver, crawled_reporters):
         try:
             next_page = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[4]/div[1]/div/div/div[2]/div/a[@class="next"]')
             next_page.click()
-            time.sleep(1)
-            print('Next Reports Page')
+            time.sleep(0.5)
+            print('Go to next reports page')
         except:
             break
 
@@ -124,15 +124,16 @@ def extractRumor(driver):
         except:
             print('Can not find original url of rumor')
             rumor_url = ''
+
         rumor_text = rumor.find_element_by_xpath('div[@class="feed bg_orange2 clearfix"]/div[@class="con"]').text
         rumorer_url = rumor.find_element_by_xpath(
             'div[@class="feed bg_orange2 clearfix"]/div[@class="con"]/a').get_attribute('href')
         assert rumorer_url == crawled_rumor['rumorer_url']
-        crawled_rumor['rumor_time'] = rumor_time
         crawled_rumor['rumor_url'] = rumor_url
+        crawled_rumor['rumor_time'] = rumor_time
         crawled_rumor['rumor_text'] = rumor_text
     else:
-        print('Rumorer deleted rumor weibo')
+        print('Rumor weibo deleted')
         pass
 
     return crawled_rumor
