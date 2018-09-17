@@ -4,7 +4,8 @@ import os, sys
 
 from driver import getChrome
 from conf import ACCOUNT, PWD, IMPLICIT_WAIT_DRIVER, SLEEP_NEXT_COMPLAINTS_PAGE, SLEEP_NEXT_COMPLAINT, \
-                 RETRY_COMPLAINT_DETAIL_TIMEOUT_COUNT, RESTART_EXCEPTION_COUNT, SAVE_COMPAINT_BATCH
+                 RETRY_COMPLAINT_DETAIL_TIMEOUT_COUNT, RESTART_EXCEPTION_COUNT, RESTART_TIMEOUT_EXCEPTION_COUNT,\
+                 SAVE_COMPAINT_BATCH
 from mongo import MongoHelper
 from extract import *
 from selenium.common.exceptions import TimeoutException
@@ -108,12 +109,16 @@ def getComplaintDetails(driver):
     crawled_urls = mongo.getCrawledUrls()
     complaints = []
     exception_count = 0
+    timeout_exception_count = 0
     with open('complaint_urls.txt') as f:
         page_count = 0
         while True:
             # restart when come across too many timeouts
-            if exception_count >= RESTART_EXCEPTION_COUNT:
-                print('>>>> Timeout >= 20, try to restart program!')
+            if timeout_exception_count >= RESTART_TIMEOUT_EXCEPTION_COUNT:
+                print(f'>>>> Timeout Excepiton reach {RESTART_EXCEPTION_COUNT}, try to restart program!')
+                restart_program()
+            elif exception_count >= RESTART_EXCEPTION_COUNT:
+                print(f'>>>> Exception reach {RESTART_EXCEPTION_COUNT}, try to restart program!')
                 restart_program()
 
             page_count += 1
@@ -136,6 +141,8 @@ def getComplaintDetails(driver):
             except Exception as e:
                 print('>> Got Exception: {}'.format(traceback.format_exc()))
                 exception_count += 1
+                if type(e) == TimeoutException:
+                    timeout_exception_count += 1
 
             complaint_count = len(complaints)
             if complaint_count == SAVE_COMPAINT_BATCH:
