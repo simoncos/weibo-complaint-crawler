@@ -1,5 +1,6 @@
 import time
 import traceback
+import os, sys
 
 from driver import getChrome
 from conf import ACCOUNT, PWD
@@ -95,15 +96,24 @@ def getComplaintDetail(url, driver, retry=0):
         'looks': looks
     }
 
+def restart_program():
+  python = sys.executable
+  os.execl(python, python, * sys.argv)
+
 def getComplaintDetails(driver):
     # TODO: get all crawled urls from mongo, if url in the list, continue
     print('>>>> Begin Crawling Complaint Details...')
     mongo = MongoHelper()
     crawled_urls = mongo.getCrawledUrls()
     complaints = []
+    timeout_count = 0
     with open('complaint_urls.txt') as f:
         page_count = 0
         while True:
+            if timeout_count >= 10: # restart when come across too many timeouts
+                print('>>>> Timeout >= 10, try to restart program!')
+                restart_program()
+
             page_count += 1
             url = f.readline().strip()
             if str(url) == '':
@@ -119,8 +129,12 @@ def getComplaintDetails(driver):
                 complaint = getComplaintDetail(url, driver)
                 print(complaint)
                 complaints.append({'url': url, **complaint})
-            except:
+                # if page_count % 2 == 0:
+                #     raise TimeoutException
+            except Exception as e:
                 print('>> Got Exception: {}'.format(traceback.format_exc()))
+                if type(e) == TimeoutException:
+                    timeout_count += 1
 
             complaint_count = len(complaints)
             if complaint_count == 10:
