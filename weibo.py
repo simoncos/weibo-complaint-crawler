@@ -3,7 +3,8 @@ import traceback
 import os, sys
 
 from driver import getChrome
-from conf import ACCOUNT, PWD
+from conf import ACCOUNT, PWD, IMPLICIT_WAIT_DRIVER, SLEEP_NEXT_COMPLAINTS_PAGE, SLEEP_NEXT_COMPLAINT, \
+                 RETRY_COMPLAINT_DETAIL_TIMEOUT_COUNT, RESTART_EXCEPTION_COUNT, SAVE_COMPAINT_BATCH
 from mongo import MongoHelper
 from extract import *
 from selenium.common.exceptions import TimeoutException
@@ -11,7 +12,7 @@ from selenium.common.exceptions import TimeoutException
 def login(driver):
     # Login
     driver.get('http://weibo.com/login.php')
-    driver.implicitly_wait(15)
+    driver.implicitly_wait(IMPLICIT_WAIT_DRIVER)
     driver.find_element_by_xpath('//*[@id="loginname"]').clear()
     driver.find_element_by_xpath('//*[@id="loginname"]').send_keys(ACCOUNT)
     driver.find_element_by_xpath('//*[@id="pl_login_form"]/div/div[3]/div[2]/div/input').clear()
@@ -54,7 +55,7 @@ def getComplaintUrls(driver):
         with open('complaint_urls.txt', 'a') as f:
             f.write('\n'.join(complaint_urls) + '\n')
 
-        time.sleep(1)
+        time.sleep(SLEEP_NEXT_COMPLAINTS_PAGE)
         next.click()
         page_count += 1
 
@@ -62,7 +63,7 @@ def getComplaintDetail(url, driver, retry=0):
     try:
         driver.get(url)
     except TimeoutException: # selenium exception type
-        if retry >= 2:
+        if retry >= RETRY_COMPLAINT_DETAIL_TIMEOUT_COUNT:
             print('>>>> TimeoutException occurs in {} Retries, Raise'.format(retry))
         else:
             retry += 1
@@ -106,12 +107,13 @@ def getComplaintDetails(driver):
     mongo = MongoHelper()
     crawled_urls = mongo.getCrawledUrls()
     complaints = []
-    timeout_count = 0
+    exception_count = 0
     with open('complaint_urls.txt') as f:
         page_count = 0
         while True:
-            if timeout_count >= 10: # restart when come across too many timeouts
-                print('>>>> Timeout >= 10, try to restart program!')
+            # restart when come across too many timeouts
+            if exception_count >= RESTART_EXCEPTION_COUNT:
+                print('>>>> Timeout >= 20, try to restart program!')
                 restart_program()
 
             page_count += 1
@@ -125,7 +127,7 @@ def getComplaintDetails(driver):
                 print('Skip Crawled Url')
                 continue
             try:
-                time.sleep(1)
+                time.sleep(SLEEP_NEXT_COMPLAINT)
                 complaint = getComplaintDetail(url, driver)
                 print(complaint)
                 complaints.append({'url': url, **complaint})
@@ -133,11 +135,10 @@ def getComplaintDetails(driver):
                 #     raise TimeoutException
             except Exception as e:
                 print('>> Got Exception: {}'.format(traceback.format_exc()))
-                if type(e) == TimeoutException:
-                    timeout_count += 1
+                exception_count += 1
 
             complaint_count = len(complaints)
-            if complaint_count == 10:
+            if complaint_count == SAVE_COMPAINT_BATCH:
                 print('>> Writing {} complaints to mongo...'.format(complaint_count))
                 mongo.update(complaints)
                 complaints = []

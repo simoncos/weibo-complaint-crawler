@@ -2,6 +2,7 @@ import traceback
 import time
 import re
 from selenium.common.exceptions import StaleElementReferenceException
+from conf import SLEEP_NEXT_REPORTER, SLEEP_NEXT_REPORTS_PAGE
 
 def extractReporter(driver):
     reporter = driver.find_element_by_xpath(
@@ -57,8 +58,7 @@ def extractReporters(driver):
 
                 next_reporter = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[2]/div[1]/div/div[1]/a')
                 next_reporter.click()
-                time.sleep(0.5)
-
+                time.sleep(SLEEP_NEXT_REPORTER)
             except:
                 print('Reporter iter exception: {}'.format(traceback.format_exc()))
                 continue
@@ -91,7 +91,7 @@ def extractReports(driver, crawled_reporters):
         try:
             next_page = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[4]/div[1]/div/div/div[2]/div/a[@class="next"]')
             next_page.click()
-            time.sleep(0.5)
+            time.sleep(SLEEP_NEXT_REPORTS_PAGE)
             print('Go to next reports page')
         except:
             break
