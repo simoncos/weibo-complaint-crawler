@@ -4,3 +4,5 @@ scrapy
 scrapy-fake-useragent
 selenium
 pymongo
+numpy
+gevent

@@ -3,10 +3,12 @@ from pymongo import MongoClient
 from conf import MONGO_HOST, MONGO_PORT, MONGO_DATABASE, MONGO_USERNAME, MONGO_PASSWORD, MONGO_COLLECTION
 
 class MongoHelper:
-    client = MongoClient(MONGO_HOST, MONGO_PORT)
-    db = client[MONGO_DATABASE]
-    db.authenticate(MONGO_USERNAME, MONGO_PASSWORD)
-    collection = db[MONGO_COLLECTION]
+
+    def __init__(self):
+        self.client = MongoClient(MONGO_HOST, MONGO_PORT)
+        self.db = self.client[MONGO_DATABASE]
+        self.db.authenticate(MONGO_USERNAME, MONGO_PASSWORD)
+        self.collection = self.db[MONGO_COLLECTION]
 
     def update(self, data):
         if type(data) is list:
