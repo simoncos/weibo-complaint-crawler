@@ -115,8 +115,6 @@ def getComplaintDetails(urls, driver_no):
     driver = getDriver()
     print(f'[{driver_no}] >> Begin Crawling Complaint Details for {len(urls)} pages...')
 
-    # TODO: reduce waiting time: {method 'recv_into' of '_socket.socket' objects}
-
     mongo = MongoHelper()
     complaints = []
     exception_count = 0
