@@ -2,7 +2,7 @@ import traceback
 import time
 import re
 from selenium.common.exceptions import StaleElementReferenceException
-from conf import SLEEP_NEXT_REPORTER, SLEEP_NEXT_REPORTS_PAGE
+from conf import SLEEP_NEXT_REPORTER, SLEEP_NEXT_REPORTS_PAGE, REPORTER_MAX_ITER
 
 def extractReporter(driver):
     reporter = driver.find_element_by_xpath(
@@ -40,6 +40,10 @@ def extractReporters(driver):
         crawled_reporters = []
         crawled_reporter_names = []
         while True:
+            if iter > REPORTER_MAX_ITER:
+                print(f'reporter iter exceeds {REPORTER_MAX_ITER}, break')
+                break
+
             iter += 1
             print('reporter iter: {}'.format(iter))
             if len(crawled_reporter_names) == reporter_count:
