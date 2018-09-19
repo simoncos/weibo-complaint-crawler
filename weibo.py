@@ -5,7 +5,7 @@ import multiprocessing as mp
 
 import os, sys
 import numpy as np
-from driver import getChrome, getFirefox
+from driver import getDriver
 from conf import ACCOUNT, PWD, IMPLICIT_WAIT_DRIVER, SLEEP_NEXT_COMPLAINTS_PAGE, SLEEP_NEXT_COMPLAINT, \
                  RETRY_COMPLAINT_DETAIL_TIMEOUT_COUNT, RESTART_EXCEPTION_COUNT, RESTART_TIMEOUT_EXCEPTION_COUNT,\
                  SAVE_COMPAINT_BATCH, N_WORKER, WEB_DRIVER
@@ -106,19 +106,9 @@ def restart_program():
   python = sys.executable
   os.execl(python, python, * sys.argv)
 
-def getDriver(driver='Chrome'):
-    if driver == 'Chrome':
-        driver = getChrome(headless=True)
-    elif driver == 'Firefox':
-        driver = getFirefox(headless=True)
-    else:
-        print('Driver not supported!')
-        return None
-    login(driver)
-    return driver
-
 def getComplaintDetails(urls, driver_no):
-    driver = getDriver(driver=WEB_DRIVER)
+    driver = getDriver(driver=WEB_DRIVER, driver_no=driver_no)
+    login(driver)
     print(f'[{driver_no}] >> Begin Crawling Complaint Details for {len(urls)} pages...')
 
     mongo = MongoHelper()

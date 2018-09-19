@@ -1,6 +1,6 @@
 import platform
-
 from selenium import webdriver
+import random
 
 
 def getChrome(headless=True):
@@ -35,4 +35,14 @@ def getFirefox(headless=True):
     driver = webdriver.Firefox(executable_path='./geckodriver', options=options)
 
     driver.maximize_window()
+    return driver
+
+def getDriver(driver, driver_no):
+    if driver == 'Chrome':
+        driver = getChrome(headless=True)
+    elif driver == 'Firefox':
+        driver = getFirefox(headless=True)
+    else:
+        driver = random.choice([getChrome, getFirefox])(headless=True)
+        print(f'{[driver_no]} Random chose {type(driver)}')
     return driver
