@@ -1,4 +1,5 @@
 chromedriver*
+geckodriver*
 *.txt
 .idea
 __pycache__/
