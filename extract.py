@@ -24,6 +24,7 @@ def extractReporter(driver):
             }
 
 def extractReporters(driver):
+    # TODO: one reporter has multiple reports: http://service.account.weibo.com/show?rid=K1CaK6wBk7agg
     reporter_count_text = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[2]/div[1]/div/div[1]/span[2]').text
     if re.match('\(共有', reporter_count_text):
         reporter_count = 20
@@ -143,6 +144,7 @@ def extractRumor(driver):
     return crawled_rumor
 
 def extractOfficial(driver):
+    # TODO: multiple times of official: http://service.account.weibo.com/show?rid=K1CaK6wBk7agg
     official_text = driver.find_element_by_xpath('//*[@id="pl_service_common"]/div[3]/div/div/p').text
     crawled_official = {
         'official_text': official_text
