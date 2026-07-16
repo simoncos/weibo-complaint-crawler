@@ -1,6 +1,32 @@
 # weibo-complaint-crawler
 
-Python 3.6+
+Python 3.6+ (crawler) / 3.8+ (analysis & benchmark)
+
+### Research Toolkit
+
+See [docs/literature_review.md](docs/literature_review.md) for the dataset review, literature survey and proposed research directions. Two of them are scaffolded in this repo:
+
+**Parse & describe the dataset** (direction B: who reports rumors):
+
+```bash
+# Export MongoDB first: mongoexport --collection <c> --db <db> --out complaints.jsonl
+python -m analysis.stats complaints.jsonl --markdown report.md
+```
+
+- `analysis/official_parser.py` — parses each `official_text` verdict into structured fields: verdict (构成/不构成), cited rule articles (《微博举报投诉操作细则》第N条), penalties (扣除信用积分/禁言/禁被关注/删除微博/关闭账号), effectiveness delay, credited debunkers.
+- `analysis/reporter_features.py` — per-reporter features: account type (government/media/legal/debunker/ordinary), evidence URLs and #微博辟谣# usage in report statements.
+
+**LLM-as-adjudicator benchmark** (direction A: can an LLM reproduce the platform's rulings?):
+
+```bash
+python -m benchmark.build_benchmark complaints.jsonl instances.jsonl   # pseudonymized instances
+pip install anthropic pydantic && export ANTHROPIC_API_KEY=...
+python -m benchmark.run_eval instances.jsonl --limit 100 [--rules xize.md]
+```
+
+The eval shows Claude the same case materials the platform saw (reported post + reporter statements) and scores agreement with the real ruling on verdict, cited articles and penalties. `--rules` prepends the full 细则 text (policy-as-prompt condition).
+
+Tests: `python -m tests.test_analysis`
 
 ### Data Source
 
