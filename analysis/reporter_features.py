@@ -9,8 +9,8 @@ import re
 
 # Institutional-account cues in profile descriptions. CMC reporter profiles for
 # government/legal/media accounts almost always self-describe with one of these.
-_GOV_KEYWORDS = ('官方微博', '官微', '政务', '公安', '普法', '法院', '检察',
-                 '司法', '政府', '委员会', '宣传部', '网信')
+_GOV_KEYWORDS = ('政务', '公安', '网警', '巡查执法', '警方', '派出所', '警务',
+                 '普法', '法院', '检察', '司法', '政府', '委员会', '宣传部', '网信')
 _DEBUNK_KEYWORDS = ('辟谣', '谣言')
 _MEDIA_KEYWORDS = ('日报', '晚报', '电视台', '广播', '新闻', '媒体', '记者')
 _LEGAL_KEYWORDS = ('律师', '法律')
