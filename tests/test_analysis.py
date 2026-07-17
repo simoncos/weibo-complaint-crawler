@@ -35,11 +35,25 @@ OFFICIAL_REJECTED = '经查，被举报人言论不构成“发布不实信息�
 
 OFFICIAL_UNDETERMINED = '经查，现有证据暂无法判定被举报内容真实性，暂不处理。'
 
+OFFICIAL_INFORMAL = '经查，此微博称“苍井空被聘为少年先锋队辅导员”不实。@捉谣记 已对此事件辟谣：这是一条谣言'
+
+OFFICIAL_HARMFUL = (
+    '经查，被举报人通过微博平台发布所谓地震预报信息，其行为违反《中华人民共和国防震减灾法》相关规定，'
+    '微博内容构成“有害信息”。现根据《微博举报投诉操作细则》第20条，对被举报人处理如下：禁言15天。')
+
+# Evidence citation (IAAF rules 第168条) must not be counted as a platform article.
+OFFICIAL_EVIDENCE_ARTICLE = (
+    '经查，栏架高度为1.067米，规定于国际田联（IAAF）《2012-2013最新竞赛规则》（IAAF COMPETITION RULES）'
+    '第168条。被举报人言论构成“发布不实信息”。现根据《新浪微博社区管理规定(试行)》'
+    '（http://weibo.com/z/guize/guiding.html）第22条，对被举报人处理如下：扣除信用积分2分。')
+
 
 def test_parse_verdict():
     assert parse_verdict(OFFICIAL_UPHELD) == 'upheld'
     assert parse_verdict(OFFICIAL_REJECTED) == 'rejected'
     assert parse_verdict(OFFICIAL_UNDETERMINED) == 'undetermined'
+    assert parse_verdict(OFFICIAL_INFORMAL) == 'upheld_informal'
+    assert parse_verdict(OFFICIAL_HARMFUL) == 'upheld_harmful'
     assert parse_verdict('') is None
     assert parse_verdict(None) is None
 
@@ -47,12 +61,17 @@ def test_parse_verdict():
 def test_parse_cited_articles():
     assert parse_cited_articles(OFFICIAL_UPHELD) == [19]
     assert parse_cited_articles(OFFICIAL_MUTE) == [21]
+    # evidence citations (IAAF 第168条, laws) are excluded
+    assert parse_cited_articles(OFFICIAL_EVIDENCE_ARTICLE) == [22]
+    assert parse_cited_articles(OFFICIAL_HARMFUL) == [20]
+    # fallback when no platform rulebook is cited at all
     assert parse_cited_articles('依据第3条、第十二条与第19条') == [3, 12, 19]
     assert parse_cited_articles('无引用') == []
 
 
 def test_parse_cited_documents():
     assert parse_cited_documents(OFFICIAL_UPHELD) == ['微博举报投诉操作细则']
+    assert parse_cited_documents(OFFICIAL_EVIDENCE_ARTICLE) == ['新浪微博社区管理规定(试行)']
 
 
 def test_parse_penalties():

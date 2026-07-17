@@ -17,12 +17,16 @@ import re
 # Verdict -------------------------------------------------------------------
 
 VERDICT_UPHELD = 'upheld'          # 构成“发布不实信息”
+VERDICT_UPHELD_HARMFUL = 'upheld_harmful'  # 构成“有害信息”（如地震谣言援引防震减灾法）
+VERDICT_UPHELD_INFORMAL = 'upheld_informal'  # 认定不实/已辟谣，但无正式“构成”句、通常无处罚
 VERDICT_REJECTED = 'rejected'      # 不构成“发布不实信息” / 举报不成立
 VERDICT_UNDETERMINED = 'undetermined'  # 暂无法判定 etc.
 
-_RE_REJECTED = re.compile(r'不构成\s*[“"『]?发布不实信息|举报不成立|无法支持举报')
-_RE_UPHELD = re.compile(r'构成\s*[“"『]?发布不实信息')
+_RE_REJECTED = re.compile(r'不构成\s*[“"『]?(?:发布)?不实信息|举报不成立|无法支持举报')
+_RE_UPHELD = re.compile(r'构成\s*[“"『]?(?:发布)?不实信息')
+_RE_UPHELD_HARMFUL = re.compile(r'构成\s*[“"『]?(?:发布)?(?:时政)?有害信息')
 _RE_UNDETERMINED = re.compile(r'暂无法判定|无法判定|暂不处理|中止处理')
+_RE_INFORMAL_FALSE = re.compile(r'经查[^。]{0,200}?不实|已(?:对此事件)?辟谣')
 
 
 def parse_verdict(text):
@@ -33,15 +37,27 @@ def parse_verdict(text):
         return VERDICT_REJECTED
     if _RE_UPHELD.search(text):
         return VERDICT_UPHELD
+    if _RE_UPHELD_HARMFUL.search(text):
+        return VERDICT_UPHELD_HARMFUL
     if _RE_UNDETERMINED.search(text):
         return VERDICT_UNDETERMINED
+    # Some verdicts assert falsity ("经查…不实。@XX 已辟谣") without the formal
+    # “构成” clause; they typically carry no penalty.
+    if _RE_INFORMAL_FALSE.search(text):
+        return VERDICT_UPHELD_INFORMAL
     return None
 
 
 # Cited rule articles --------------------------------------------------------
 
-_RE_RULES_DOC = re.compile(r'《([^《》]{2,30}?(?:细则|规定|公约|规则))》')
+# Platform rulebooks only (《微博举报投诉操作细则》,《新浪微博社区管理规定(试行)》,
+# 《微博社区公约》…). Verdicts also cite external documents as *evidence* —
+# laws, IAAF competition rules, etc. — which must not be counted.
+_RE_RULES_DOC = re.compile(
+    r'《([^《》]{0,26}?(?:微博|社区)[^《》]{0,26}?(?:细则|规定|公约|规则)(?:\s*[（(]试行[)）])?)》')
 _RE_ARTICLE = re.compile(r'第\s*([0-9一二三四五六七八九十百]+)\s*条')
+# Article numbers that follow a platform rulebook citation (URL may sit between).
+_RE_DOC_ARTICLE = re.compile(_RE_RULES_DOC.pattern + r'[^《》第]{0,80}?' + _RE_ARTICLE.pattern)
 
 _CN_DIGITS = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
               '六': 6, '七': 7, '八': 8, '九': 9}
@@ -63,25 +79,39 @@ def _cn_num_to_int(s):
 
 
 def parse_cited_articles(text):
-    """Return sorted unique article numbers cited, e.g. [19]."""
+    """Return sorted unique platform-rule article numbers cited, e.g. [19].
+
+    Only articles following a platform rulebook citation count; if the text
+    cites no platform rulebook at all, fall back to any 第N条 occurrence.
+    """
     if not text:
         return []
     articles = set()
-    for m in _RE_ARTICLE.finditer(text):
-        n = _cn_num_to_int(m.group(1))
+    for m in _RE_DOC_ARTICLE.finditer(text):
+        n = _cn_num_to_int(m.group(2))
         if n:
             articles.add(n)
+    if not articles and not _RE_RULES_DOC.search(text):
+        for m in _RE_ARTICLE.finditer(text):
+            n = _cn_num_to_int(m.group(1))
+            if n:
+                articles.add(n)
     return sorted(articles)
 
 
 def parse_cited_documents(text):
-    """Return rule document titles cited, e.g. ['微博举报投诉操作细则']."""
+    """Return normalized rulebook titles cited, e.g. ['微博举报投诉操作细则'].
+
+    Scraped titles may contain stray whitespace/newlines and mixed-width
+    parentheses; both are normalized away.
+    """
     if not text:
         return []
     seen = []
     for m in _RE_RULES_DOC.finditer(text):
-        if m.group(1) not in seen:
-            seen.append(m.group(1))
+        title = re.sub(r'\s+', '', m.group(1)).replace('（', '(').replace('）', ')')
+        if title not in seen:
+            seen.append(title)
     return seen
 
 

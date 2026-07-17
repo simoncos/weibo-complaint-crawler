@@ -20,6 +20,7 @@ def collect_stats(complaints):
     stats = {
         'n_complaints': 0,
         'verdicts': Counter(),
+        'cited_documents': Counter(),
         'cited_articles': Counter(),
         'penalty_types': Counter(),
         'credit_points': Counter(),
@@ -32,12 +33,15 @@ def collect_stats(complaints):
         'actual_reporter_counts': Counter(),
         'serial_reporters': Counter(),
         'rumorer_names': Counter(),
+        'report_years': Counter(),
     }
     for c in complaints:
         stats['n_complaints'] += 1
 
         official = parse_official((c.get('official') or {}).get('official_text'))
         stats['verdicts'][official['verdict'] or 'unparsed'] += 1
+        for d in official['cited_documents']:
+            stats['cited_documents'][d] += 1
         for a in official['cited_articles']:
             stats['cited_articles'][a] += 1
         for p in official['penalties']:
@@ -55,6 +59,8 @@ def collect_stats(complaints):
             stats['n_reports_with_debunk_hashtag'] += r['uses_debunk_hashtag']
             if r['reporter_name']:
                 stats['serial_reporters'][r['reporter_name']] += 1
+            if r['report_time']:
+                stats['report_years'][r['report_time'][:4]] += 1
 
         count = c.get('actual_reporter_count')
         if isinstance(count, int):
@@ -83,7 +89,11 @@ def render_report(stats):
         f'',
         f'Complaints: {stats["n_complaints"]}, report statements: {stats["n_reports"]}',
         f'',
+        f'## Report years', _fmt_counter(stats['report_years']),
+        f'',
         f'## Verdicts', _fmt_counter(stats['verdicts']),
+        f'',
+        f'## Cited rulebooks', _fmt_counter(stats['cited_documents']),
         f'',
         f'## Cited rule articles (第N条)', _fmt_counter(stats['cited_articles']),
         f'',

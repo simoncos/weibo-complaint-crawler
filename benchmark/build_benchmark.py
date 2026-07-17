@@ -31,6 +31,11 @@ def build_instance(complaint):
     rumor_text = rumor.get('rumor_text')
     if not rumor_text or gold['verdict'] is None:
         return None
+    # The eval is 3-way; informal falsity rulings count as upheld, and the rare
+    # “有害信息” rulings are a different offense — excluded from this benchmark.
+    verdict = {'upheld_informal': 'upheld'}.get(gold['verdict'], gold['verdict'])
+    if verdict not in ('upheld', 'rejected', 'undetermined'):
+        return None
 
     rumorer_alias = _pseudonym(rumor.get('rumorer_name'), 'user')
     reports = []
@@ -61,7 +66,7 @@ def build_instance(complaint):
             'reporter_count': complaint.get('actual_reporter_count'),
         },
         'gold': {
-            'verdict': gold['verdict'],
+            'verdict': verdict,
             'cited_articles': gold['cited_articles'],
             'penalties': gold['penalties'],
         },
