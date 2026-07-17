@@ -32,7 +32,9 @@ SYSTEM_PROMPT = """\
 - penalties：对被举报人的处理决定列表；credit_deduction 的 magnitude 为扣除的信用积分分数，\
 mute / follow_ban 的 magnitude 为天数（永久禁言为 null），delete_post / account_closure 的 magnitude 为 null
 
-请像真实平台裁决一样保持克制与一致：证据不足时选择 undetermined，处理力度与情节严重程度相称。
+请像真实平台裁决一样保持克制与一致：证据不足时选择 undetermined，处理力度与情节严重程度相称。\
+注意：平台有时认定内容不实但不作处罚（例如善意转发灾害求助类谣言的普通用户）——此时 verdict 仍为 \
+upheld，penalties 输出空列表，cited_articles 可为空。
 """
 
 
