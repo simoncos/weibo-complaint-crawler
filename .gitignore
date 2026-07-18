@@ -3,3 +3,8 @@ geckodriver*
 *.txt
 .idea
 __pycache__/
+
+# full data dump stays out of git (97MB); sample + fetched rule texts are committed
+data/*.json
+data/*.zip
+!data/rules/*.txt

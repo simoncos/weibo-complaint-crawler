@@ -4,7 +4,9 @@ Python 3.6+ (crawler) / 3.8+ (analysis & benchmark)
 
 ### Research Toolkit
 
-**Start here: [docs/research_notes.md](docs/research_notes.md)** — consolidated findings from the full 36,075-case dump (reporter concentration, state-actor entry in 2017, three rulebook generations, sanction softening, LLM-adjudication pilot) with an index of all research documents. [docs/literature_review.md](docs/literature_review.md) has the dataset review, literature survey and proposed research directions. Two of them are scaffolded in this repo:
+**Continuing this project? Read [docs/HANDOFF.md](docs/HANDOFF.md) first** — setup, state, pending work and known pitfalls.
+
+**Findings so far: [docs/research_notes.md](docs/research_notes.md)** — consolidated findings from the full 36,075-case dump (reporter concentration, state-actor entry in 2017, three rulebook generations, sanction softening, LLM-adjudication pilot) with an index of all research documents. [docs/literature_review.md](docs/literature_review.md) has the dataset review, literature survey and proposed research directions. Two of them are scaffolded in this repo:
 
 **Parse & describe the dataset** (direction B: who reports rumors):
 
