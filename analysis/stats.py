@@ -28,10 +28,15 @@ def collect_stats(complaints):
         'reporter_types': Counter(),
         'reporter_genders': Counter(),
         'n_reports': 0,
+        'n_reports_with_statement': 0,
+        'n_reports_missing_statement': 0,
         'n_reports_with_evidence_url': 0,
         'n_reports_with_debunk_hashtag': 0,
+        'n_report_times_missing': 0,
         'actual_reporter_counts': Counter(),
         'serial_reporters': Counter(),
+        'reporter_labels': {},
+        'identity_sources': Counter(),
         'rumorer_names': Counter(),
         'report_years': Counter(),
     }
@@ -51,16 +56,29 @@ def collect_stats(complaints):
             elif p['type'] == 'mute':
                 stats['mute_days'][p['magnitude'] if p['magnitude'] is not None else 'permanent'] += 1
 
+        seen_reporter_keys = set()
         for r in extract_complaint_reporter_features(c):
             stats['n_reports'] += 1
             stats['reporter_types'][r['reporter_type']] += 1
             stats['reporter_genders'][r['reporter_gender'] or 'unknown'] += 1
-            stats['n_reports_with_evidence_url'] += r['has_evidence_url']
-            stats['n_reports_with_debunk_hashtag'] += r['uses_debunk_hashtag']
-            if r['reporter_name']:
-                stats['serial_reporters'][r['reporter_name']] += 1
+            stats['identity_sources'][r['identity_source']] += 1
+            if r['has_statement']:
+                stats['n_reports_with_statement'] += 1
+                stats['n_reports_with_evidence_url'] += r['has_evidence_url']
+                stats['n_reports_with_debunk_hashtag'] += r['uses_debunk_hashtag']
+            else:
+                stats['n_reports_missing_statement'] += 1
+            if (r['reporter_key']
+                    and r['reporter_key'] not in seen_reporter_keys):
+                seen_reporter_keys.add(r['reporter_key'])
+                stats['serial_reporters'][r['reporter_key']] += 1
+                if r['reporter_name']:
+                    stats['reporter_labels'].setdefault(
+                        r['reporter_key'], Counter())[r['reporter_name']] += 1
             if r['report_time']:
                 stats['report_years'][r['report_time'][:4]] += 1
+            else:
+                stats['n_report_times_missing'] += 1
 
         count = c.get('actual_reporter_count')
         if isinstance(count, int):
@@ -81,15 +99,22 @@ def _fmt_counter(counter, top=15):
 
 
 def render_report(stats):
-    ratio = (lambda n: f'{n} ({n / (stats["n_reports"] or 1):.1%})')
-    top_serial = [f'  {name}: {n} cases' for name, n in stats['serial_reporters'].most_common(10) if n > 1]
+    statement_ratio = (lambda n: f'{n} ({n / (stats["n_reports_with_statement"] or 1):.1%})')
+    top_serial = []
+    for key, n in stats['serial_reporters'].most_common(10):
+        if n <= 1:
+            continue
+        labels = stats['reporter_labels'].get(key)
+        label = labels.most_common(1)[0][0] if labels else key
+        top_serial.append(f'  {label} [{key}]: {n} visible cases')
     top_rumorers = [f'  {name}: {n} cases' for name, n in stats['rumorer_names'].most_common(10) if n > 1]
     return '\n'.join([
         f'# Complaint dump statistics',
         f'',
         f'Complaints: {stats["n_complaints"]}, report statements: {stats["n_reports"]}',
         f'',
-        f'## Report years', _fmt_counter(stats['report_years']),
+        f'## Report years (known timestamps only)', _fmt_counter(stats['report_years']),
+        f'  missing report timestamps: {stats["n_report_times_missing"]}',
         f'',
         f'## Verdicts', _fmt_counter(stats['verdicts']),
         f'',
@@ -107,9 +132,13 @@ def render_report(stats):
         f'',
         f'## Reporter genders', _fmt_counter(stats['reporter_genders']),
         f'',
+        f'## Reporter identity source', _fmt_counter(stats['identity_sources']),
+        f'',
         f'## Report statements',
-        f'  with evidence URL: {ratio(stats["n_reports_with_evidence_url"])}',
-        f'  with #微博辟谣# hashtag: {ratio(stats["n_reports_with_debunk_hashtag"])}',
+        f'  present: {stats["n_reports_with_statement"]}',
+        f'  missing: {stats["n_reports_missing_statement"]}',
+        f'  with URL among present: {statement_ratio(stats["n_reports_with_evidence_url"])}',
+        f'  with #微博辟谣# among present: {statement_ratio(stats["n_reports_with_debunk_hashtag"])}',
         f'',
         f'## Reporters per case (actual_reporter_count)', _fmt_counter(stats['actual_reporter_counts']),
         f'',

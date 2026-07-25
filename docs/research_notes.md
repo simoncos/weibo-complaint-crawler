@@ -1,103 +1,101 @@
-# 研究备忘录：微博社区管理中心「不实信息」判例数据集
+# Research status after methodological review
 
-*整理：2026-07（本文档是全部研究工作的索引与综述；各专题细节见对应文档）*
+*Updated 2026-07-21. This replaces the earlier F1-F7 summary as the current
+interpretation boundary.*
 
-## 文档索引
+## Evidence status
 
-| 文档 | 内容 |
-|---|---|
-| [literature_review.md](literature_review.md) | 数据集回顾、文献综述、五个候选研究方向（A-E） |
-| [full_dump_report.md](full_dump_report.md) | 全量 36,075 案的描述统计（`analysis.stats` 生成） |
-| [concentration.md](concentration.md) | 举报集中度（Gini/Lorenz）、类型×年、量刑×年、规章×年（`analysis.concentration` 生成） |
-| [reporter_profiles.md](reporter_profiles.md) | Top 10 连环举报者画像（`analysis.reporter_profiles` 生成） |
-| [pilot_eval.md](pilot_eval.md) | 方向 A 试点：LLM 盲判 40 案 vs 平台真实裁决 |
-| 本文档 | 核心发现综述与研究路线图 |
+The off-repository dump was previously reported to contain 36,075 public
+complaint decisions from 2012-2018. The dump is not available in the current
+workspace, has no recorded SHA-256 manifest, and has not been rerun through the
+revised analysis. Consequently the historical numeric reports are exploratory
+artifacts, not independently reproduced results.
 
-## 数据集概况
+## Claim-by-claim disposition
 
-- **36,075 个判例**（2012-06 至 2018-08，约七年跨度，举报量峰值在 2015 年），
-  69,769 条举报陈述，38,260 个独立举报者。
-- 每案为完整裁决案卷：被举报微博 + 发布者资料、举报人资料 + 举报陈述、
-  官方判定文书（结论/引用条款/处罚/生效时限）、围观者列表。
-- 判决文书解析覆盖率 99.2%（`analysis.official_parser`，余 0.8% 为早期
-  自由文本与平台测试记录）。
-- 方向 A 基准：35,187 个可用实例（`benchmark.build_benchmark`，已匿名化）。
+### F1 — Archive selection: retained with narrow wording
 
-## 核心实证发现
+The archived output reported that almost all publicized cases were upheld. The
+valid claim is only that the **public decision archive** is highly selected. It
+does not estimate all submitted reports, rejected reports that were not
+publicized, or rumor prevalence. The exact percentage must be regenerated and
+human-validated before citation.
 
-**F1 — 公示案卷几乎全部是"举报成立"。** 98.8% upheld，仅 3 例明确驳回。
-公示档案存在强选择偏差：看不到未受理与不成立的举报。所有下游分析都要
-带着这个前提。
+### F2 — Reporter concentration: provisional, requires rerun
 
-**F2 — "众包举报"实为极不均衡的混合治理。** Gini 0.434；Top 1 账号
-「谣场现形记」独占 10.3% 的举报（7,172 案，且 99.9% 集中在 2015 年内，
-更像一场工业化批量清理运动）；84.9% 的举报者只出现一次。参与主体混合了
-职业辟谣者、普通网友、媒体、平台自身（微博管理员）与国家力量。
+The old Gini, Top-K and unique-reporter numbers used visible profiles and
+grouped identities by nickname. The revised code:
 
-**F3 — 国家执法者 2017 年显性进场。** 政务类举报 2016 年 172 条 →
-2017 年 1,210 条（与《网络安全法》生效同年）。贵港市三个网警巡查执法
-账号合计约 1,000 案，陈述仅"举报违规"四字，举报对象是数月前的旧帖
-（中位延迟 450-2,971 小时）——回溯性执法清扫，与民间辟谣的实时响应
-（12-38 小时）形成鲜明对照。
+- uses numeric profile UID where available;
+- deduplicates an identity within a case;
+- explicitly estimates visible public-page appearances;
+- reports the 20-reporter truncation lower bound;
+- provides a confirmed-complete-case sensitivity subset.
 
-**F4 — 平台"立法"三代更替，量刑随年代轻刑化。** 规章：
-《新浪微博社区管理规定(试行)》(2012-13) → 《微博社区管理规定(试行)/(正式)》
-(2014-16) → 《微博举报投诉操作细则》(2017-18)；主罚条款 第22条 → 第23条 →
-第19条。禁言处罚占比从 2012 年约 23% 降至 2015 年后约 5%；扣分档位收敛到
-2 分（81%）。
+Until the controlled dump is rerun, do not cite the old concentration numbers
+or describe them as the full reporter population.
 
-**F5 — 举报陈述的证据质量整体走低。** 附证据链接的陈述占 14.4%，且
-2016 年后从约 20% 崩落到 3-7%；#微博辟谣# 话题使用率 16.3%。大部分举报
-是无证据的"裸举报"。
+### F3 — Government participation: hypothesis, not established mechanism
 
-**F6 — 存在"认定不实但不处罚"的裁决类别。** 对善意转发灾害求助类谣言的
-普通用户，平台常只作辟谣声明、不引条款不处罚（如 2014 鲁甸地震寻人系列）。
-平台在区分恶意源头与善意传播者，但案卷材料中没有显式信号。
+Keyword-based account classification and sparse timestamps do not support the
+previous mechanism language about state entry or retrospective enforcement.
+The revised output reports effective timestamp counts and marks account type as
+heuristic. A stratified human validation set, missingness analysis and
+alternative explanations are required before making temporal comparisons.
 
-**F7 — LLM 盲判试点（40 案）：结论易、量刑难。** 裁决结论一致率 97.5%，
-但条款精确匹配 60%、处罚类型 Jaccard 53%、扣分 MAE 1.12。分歧主因：
-(a) F6 的不处罚类别无从推断；(b) 量刑由年代而非内容驱动（2012 年地沟油
-偏方罚 5 分+禁言，官员性丑闻捏造仅扣 2 分，与内容严重性直觉相反）；
-(c) 同年代内条款漂移。详见 pilot_eval.md。
+### F4 — Sanction change: old percentage withdrawn
 
-## 对两个主攻方向的含义
+The previous penalty table summed multiple penalty events within a case while
+labeling the row total as cases, and assigned year using a report-time proxy.
+The revised analysis counts each penalty type once per case, uses all cases in
+the case-year proxy as denominator, and labels the time variable honestly.
+The old 23%-to-5% mute claim is withdrawn pending regeneration.
 
-**方向 B（谁在举报谣言 → JQD:DM / ICWSM 量化描述型论文）**：F2/F3/F5
-构成完整的 findings 骨架——集中度、五种举报者原型（工业化辟谣者/模板
-搬运工/国家执法者/平台自查/调查型辟谣者）、国家进场时点、证据质量演变。
-与 Community Notes 文献的"分布式志愿者"图景对照即是讨论章节。
+### F5 — Evidence quality: withdrawn and renamed
 
-**方向 A（LLM 复现平台裁决 → FAccT / ICWSM）**：试点表明"结论"接近
-天花板（97.5%），基准的真正难点与价值在**条款引用与量刑**。核心实验设计：
-零知识 / 年代提示 / policy-as-prompt（当期规章全文）三条件对比；
-headline 指标用量刑 MAE 与宽严方向偏差（LLM vs 平台孰严）。F4 的
-"同案不同年不同罚"也支持一个独立的公平性审计章节。
+An `http(s)` marker measures URL presence, not evidence quality. The revised
+analysis separates missing statements from present statements and reports URL
+presence only, including a complete-case sensitivity table. Any evidence-
+quality claim requires an annotation guide, two annotators, validity metrics
+and adjustment for changing reporter composition.
 
-## 路线图与状态
+### F6 — Informal no-penalty outcomes: exploratory coding hypothesis
 
-- [x] 文献综述与方向论证（literature_review.md）
-- [x] 判决文书结构化解析器（覆盖 99.2%）+ 单元测试
-- [x] 全量描述统计 / 集中度 / 画像分析
-- [x] 匿名化基准构建（35,187 实例）+ 分层抽样 + 评分器
-- [x] 40 案盲判试点与错误分析
-- [ ] 正式 LLM 评测（需 `ANTHROPIC_API_KEY`）：136 案 × 3 条件，
-      命令见 pilot_eval.md「Next steps」
-- [ ] 找回三代规章全文（判决中有原始链接，可查 Web Archive）用于
-      policy-as-prompt 条件
-- [ ] 方向 B 论文初稿（图表：Lorenz 曲线、类型×年堆叠图、量刑×年）
-- [ ] 数据发布前的完整匿名化与伦理审查（普通用户假名化；政务/机构等
-      公共主体可保留）
+The parser retains an `upheld_informal` category, but neither its precision nor
+the interpretation of good-faith resharing has been validated. Do not state
+that the platform inferred intent without manual review and supporting case
+materials.
 
-## 复现命令
+### F7 — LLM adjudication: pilot only, not a result
 
-```bash
-# 数据：mongo shell 导出 (HK_DEV.WEIBO_COMPLAINT.json)，loader 自动识别格式
-python -m tests.test_analysis                                  # 单元测试
-python -m analysis.stats dump.json --markdown report.md        # 描述统计
-python -m analysis.concentration dump.json --out-dir out/      # 集中度+时间
-python -m analysis.reporter_profiles dump.json --top 10        # 举报者画像
-python -m benchmark.build_benchmark dump.json instances.jsonl  # 构建基准
-python -m benchmark.sample instances.jsonl sample.jsonl --per-stratum 34
-python -m benchmark.run_eval sample.jsonl --rules xize.md      # LLM 评测（需 API key）
-python -m benchmark.score sample.jsonl predictions.jsonl       # 评分
-```
+The previous 40-case in-session exercise lacked a frozen sample, predictions,
+baseline, independent runs and an auditable prompt. Its 97.5% verdict agreement
+must not be used as evidence that an LLM reproduces platform adjudication.
+`docs/benchmark_protocol.md` defines the replacement paired experiment.
+
+## Current research directions
+
+Direction B remains viable as a descriptive study of **reporter profiles
+visible in publicized complaint cases**, provided the full data manifest,
+identity resolution, truncation sensitivity and human validation gates pass.
+
+Direction A remains viable as an exploratory benchmark of historical outcome
+agreement, with penalty and article agreement as primary substantive targets.
+It cannot make claims about de-novo fact checking, intent, legitimacy or causal
+policy effects without additional design work.
+
+## Reproduction gates
+
+- [x] Synthetic public fixture and automated sensitive-artifact scan.
+- [x] Dump-manifest generator.
+- [x] UID-based visible-reporter analysis and complete-case sensitivity output.
+- [x] Two-annotator plus adjudication validation tooling.
+- [x] Strict scorer and end-to-end format tests.
+- [x] Input/gold separation and draft three-condition benchmark protocol.
+- [ ] Locate the controlled dump and record its real hash.
+- [ ] Complete human annotations and report validation metrics.
+- [ ] Retrieve and human-verify policy versions and effective dates.
+- [ ] Freeze the API dependency environment and approve data processing.
+- [ ] Run the full analysis and formal benchmark.
+
+See `docs/revision_protocol.md` for the release decision rules.

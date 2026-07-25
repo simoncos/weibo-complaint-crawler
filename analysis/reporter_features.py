@@ -17,6 +17,8 @@ _LEGAL_KEYWORDS = ('律师', '法律')
 
 _RE_URL = re.compile(r'https?://\S+')
 _RE_DEBUNK_TAG = re.compile(r'#微博辟谣#|#辟谣#')
+_RE_WEIBO_UID = re.compile(
+    r'(?:weibo\.com/(?:u/)?|uid=)(\d{5,})', re.IGNORECASE)
 
 
 def classify_reporter_type(description):
@@ -33,6 +35,25 @@ def classify_reporter_type(description):
     return 'ordinary'
 
 
+def reporter_identity(reporter):
+    """Return the most stable available internal identity key.
+
+    Platform numeric IDs are preferred. Synthetic fixtures keep their explicit
+    IDs. Nickname fallback is reported separately by analysis code and must not
+    be interpreted as a verified unique account.
+    """
+    url = (reporter.get('reporter_url') or '').strip()
+    match = _RE_WEIBO_UID.search(url)
+    if match:
+        return 'uid:' + match.group(1), 'uid'
+    if url.startswith('synthetic-'):
+        return 'synthetic:' + url, 'synthetic'
+    name = (reporter.get('reporter_name') or '').strip()
+    if name:
+        return 'name-fallback:' + name, 'name_fallback'
+    return None, 'missing'
+
+
 def strip_reporter_prefix(reporter_name, report_text):
     """report_text is scraped as '<name>：<statement>' — drop the prefix."""
     if not report_text:
@@ -47,13 +68,17 @@ def extract_report_features(reporter):
     """Features for one entry of the `reports` array."""
     statement = strip_reporter_prefix(
         reporter.get('reporter_name'), reporter.get('report_text'))
+    identity_key, identity_source = reporter_identity(reporter)
     return {
+        'reporter_key': identity_key,
+        'identity_source': identity_source,
         'reporter_name': reporter.get('reporter_name'),
         'reporter_gender': reporter.get('reporter_gender'),
         'reporter_location': (reporter.get('reporter_location') or '').strip(),
         'reporter_type': classify_reporter_type(reporter.get('reporter_description')),
         'report_time': reporter.get('report_time'),
         'statement': statement,
+        'has_statement': bool(statement),
         'statement_length': len(statement),
         'has_evidence_url': bool(_RE_URL.search(statement)),
         'uses_debunk_hashtag': bool(_RE_DEBUNK_TAG.search(statement)),

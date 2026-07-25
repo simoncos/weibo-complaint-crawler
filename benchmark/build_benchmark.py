@@ -1,98 +1,179 @@
-"""Build the LLM-adjudication benchmark (direction A) from a complaint dump.
+"""Build separated model-input and sealed-gold benchmark files.
 
-Each benchmark instance pairs the case materials (rumor + reporter statements,
-i.e. what a human adjudicator saw) with the gold labels parsed from the
-platform's own verdict text. PII is reduced: user URLs / avatars are dropped
-and account names are replaced with stable pseudonyms.
-
-Usage:
-    python -m benchmark.build_benchmark data/complaints.jsonl benchmark/instances.jsonl
+The model-facing file omits platform URLs, profile attributes, exact times and
+official adjudication text. Free-text redaction is conservative and still
+requires human privacy review before any third-party API run.
 """
 
 import argparse
-import hashlib
 import json
+import re
+from datetime import date
+from pathlib import Path
 
 from analysis.load import iter_complaints
 from analysis.official_parser import parse_official
 from analysis.reporter_features import extract_report_features
 
 
-def _pseudonym(name, role):
-    digest = hashlib.sha256(('weibo-cmc:' + (name or '')).encode('utf-8')).hexdigest()[:8]
-    return f'{role}_{digest}'
+_RE_URL = re.compile(r'https?://\S+', re.I)
+_RE_HANDLE = re.compile(r'@[\w\-\u3400-\u9fff]{2,}')
+_RE_CONTACT = re.compile(
+    r'(?i)(?:qq|微信|电话|手机)[\s:：号]*[\w\-]{5,}|(?<!\d)1[3-9]\d{9}(?!\d)')
 
 
-def build_instance(complaint):
-    """Return one benchmark instance dict, or None if labels are unusable."""
+def era_from_time(value):
+    value = (value or '').strip()
+    if len(value) < 4 or not value[:4].isdigit():
+        return 'unknown'
+    year = int(value[:4])
+    if 2012 <= year <= 2013:
+        return 'era_2012_2013'
+    if 2014 <= year <= 2016:
+        return 'era_2014_2016'
+    if 2017 <= year <= 2018:
+        return 'era_2017_2018'
+    return 'outside_study_window'
+
+
+def redact_text(text):
+    text = _RE_URL.sub('[URL]', text or '')
+    text = _RE_HANDLE.sub('[HANDLE]', text)
+    text = _RE_CONTACT.sub('[CONTACT]', text)
+    return text.strip()
+
+
+def policy_date_from_time(value):
+    match = re.match(r'^(\d{4}-\d{2}-\d{2})', (value or '').strip())
+    if not match:
+        return None
+    try:
+        return date.fromisoformat(match.group(1)).isoformat()
+    except ValueError:
+        return None
+
+
+def build_case(complaint, case_id):
     official_text = (complaint.get('official') or {}).get('official_text')
     gold = parse_official(official_text)
     rumor = complaint.get('rumor') or {}
     rumor_text = rumor.get('rumor_text')
     if not rumor_text or gold['verdict'] is None:
         return None
-    # The eval is 3-way; informal falsity rulings count as upheld, and the rare
-    # “有害信息” rulings are a different offense — excluded from this benchmark.
     verdict = {'upheld_informal': 'upheld'}.get(gold['verdict'], gold['verdict'])
     if verdict not in ('upheld', 'rejected', 'undetermined'):
         return None
 
-    rumorer_alias = _pseudonym(rumor.get('rumorer_name'), 'user')
+    post_time = rumor.get('rumor_time')
+    policy_date = policy_date_from_time(post_time)
+    if not policy_date:
+        return None
+    era = era_from_time(post_time)
+    reported_post = rumor_text
+    rumorer_name = rumor.get('rumorer_name')
+    if rumorer_name and reported_post.startswith(rumorer_name):
+        reported_post = reported_post[len(rumorer_name):].lstrip('：: ')
+
     reports = []
-    for r in complaint.get('reports') or []:
-        feats = extract_report_features(r)
-        if not feats['statement']:
+    for index, raw_reporter in enumerate(complaint.get('reports') or [], 1):
+        features = extract_report_features(raw_reporter)
+        if not features['has_statement']:
             continue
         reports.append({
-            'reporter_alias': _pseudonym(feats['reporter_name'], 'reporter'),
-            'reporter_type': feats['reporter_type'],
-            'report_time': feats['report_time'],
-            'statement': feats['statement'],
+            'reporter_alias': f'reporter_{index:02d}',
+            'reporter_type': features['reporter_type'],
+            'report_year': (features['report_time'] or '')[:4] or None,
+            'statement': redact_text(features['statement']),
         })
 
-    return {
-        'case_id': complaint.get('url'),
+    input_record = {
+        'case_id': case_id,
+        'era': era,
+        'policy_date': policy_date,
         'input': {
-            # Rumorer name is stripped from the scraped text prefix as well.
-            'reported_post': rumor_text.split('：', 1)[-1].strip(),
-            'reported_user': {
-                'alias': rumorer_alias,
-                'gender': rumor.get('rumorer_gender'),
-                'location': rumor.get('rumorer_location'),
-                'description': rumor.get('rumorer_description'),
-            },
-            'post_time': rumor.get('rumor_time'),
+            'reported_post': redact_text(reported_post),
+            'reported_user': {'alias': 'reported_user'},
+            'post_year': policy_date[:4],
             'reports': reports,
-            'reporter_count': complaint.get('actual_reporter_count'),
+            'visible_reporter_count': len(complaint.get('reports') or []),
+            'actual_reporter_count': complaint.get('actual_reporter_count'),
         },
+    }
+    gold_record = {
+        'case_id': case_id,
+        'era': era,
         'gold': {
             'verdict': verdict,
             'cited_articles': gold['cited_articles'],
             'penalties': gold['penalties'],
         },
-        # Kept for error analysis; drop before public release.
+    }
+    linkage_record = {
+        'case_id': case_id,
+        'source_url': complaint.get('url'),
         'official_text': official_text,
     }
+    return input_record, gold_record, linkage_record
+
+
+def build_instance(complaint, case_id='synthetic-case'):
+    """Compatibility helper for unit tests; returns input plus sealed gold."""
+    built = build_case(complaint, case_id)
+    if not built:
+        return None
+    input_record, gold_record, _ = built
+    return {**input_record, 'gold': gold_record['gold']}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('dump', help='mongoexport .jsonl / .json file')
-    parser.add_argument('out', help='output benchmark .jsonl')
-    parser.add_argument('--limit', type=int, help='max instances')
+    parser.add_argument('dump', help='restricted source dump')
+    parser.add_argument('inputs_out', help='model-facing input JSONL')
+    parser.add_argument('--gold-out', required=True, help='sealed gold JSONL')
+    parser.add_argument('--linkage-out', help='optional restricted source linkage JSONL')
+    parser.add_argument('--limit', type=int)
+    parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args(argv)
+    if args.limit is not None and args.limit <= 0:
+        parser.error('--limit must be positive')
+
+    source = Path(args.dump).resolve()
+    outputs = [Path(args.inputs_out).resolve(), Path(args.gold_out).resolve()]
+    if args.linkage_out:
+        outputs.append(Path(args.linkage_out).resolve())
+    if len(outputs) != len(set(outputs)):
+        parser.error('inputs, gold and linkage outputs must be different files')
+    if source in outputs:
+        parser.error('an output path must not overwrite the source dump')
+    existing = [path for path in outputs if path.exists()]
+    if existing and not args.overwrite:
+        parser.error(
+            f'output already exists (use --overwrite intentionally): {existing[0]}')
 
     n_in = n_out = 0
-    with open(args.out, 'w', encoding='utf-8') as f:
-        for complaint in iter_complaints(args.dump):
-            n_in += 1
-            instance = build_instance(complaint)
-            if instance:
-                f.write(json.dumps(instance, ensure_ascii=False) + '\n')
+    linkage_file = (
+        open(args.linkage_out, 'w', encoding='utf-8') if args.linkage_out else None)
+    try:
+        with open(args.inputs_out, 'w', encoding='utf-8') as inputs_file, \
+             open(args.gold_out, 'w', encoding='utf-8') as gold_file:
+            for complaint in iter_complaints(args.dump):
+                n_in += 1
+                case_id = f'case-{n_in:06d}'
+                built = build_case(complaint, case_id)
+                if not built:
+                    continue
+                input_record, gold_record, linkage_record = built
+                inputs_file.write(json.dumps(input_record, ensure_ascii=False) + '\n')
+                gold_file.write(json.dumps(gold_record, ensure_ascii=False) + '\n')
+                if linkage_file:
+                    linkage_file.write(json.dumps(linkage_record, ensure_ascii=False) + '\n')
                 n_out += 1
                 if args.limit and n_out >= args.limit:
                     break
-    print(f'{n_out}/{n_in} complaints converted to benchmark instances -> {args.out}')
+    finally:
+        if linkage_file:
+            linkage_file.close()
+    print(f'{n_out}/{n_in} cases -> {args.inputs_out}; sealed gold -> {args.gold_out}')
 
 
 if __name__ == '__main__':

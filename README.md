@@ -1,202 +1,75 @@
 # weibo-complaint-crawler
 
-Python 3.6+ (crawler) / 3.8+ (analysis & benchmark)
+Historical crawler and research toolkit for public Weibo Community Management
+Center complaint decisions collected through 2018.
 
-### Research Toolkit
+> **Research status:** internal revision work in progress. The full dump and
+> derived benchmark contain personal data and are **not approved for public
+> release**. The tracked JSONL fixture is synthetic. Read
+> [docs/data_governance.md](docs/data_governance.md) before using any data.
 
-**Continuing this project? Read [docs/HANDOFF.md](docs/HANDOFF.md) first** — setup, state, pending work and known pitfalls.
+## Repository layers
 
-**Findings so far: [docs/research_notes.md](docs/research_notes.md)** — consolidated findings from the full 36,075-case dump (reporter concentration, state-actor entry in 2017, three rulebook generations, sanction softening, LLM-adjudication pilot) with an index of all research documents. [docs/literature_review.md](docs/literature_review.md) has the dataset review, literature survey and proposed research directions. Two of them are scaffolded in this repo:
+- Legacy crawler (`weibo.py`, `extract.py`, `driver.py`, `mongo.py`): the
+  original Selenium/MongoDB collection code. It has not been modernized for
+  current Weibo pages or current Selenium APIs.
+- Analysis (`analysis/`): dump loading, adjudication parsing, descriptive
+  statistics, concentration analysis and reporter profiles.
+- Benchmark (`benchmark/`): construction, sampling, model evaluation and
+  scoring for the exploratory LLM-as-adjudicator study.
+- Research documentation (`docs/`): current findings, limitations, handoff and
+  revision protocol.
 
-**Parse & describe the dataset** (direction B: who reports rumors):
+## Data boundary
+
+The original dump was previously reported to contain 36,075 public complaint
+records collected between 2012 and 2018; that count has not been reproduced in
+this checkout. The dump is intentionally absent from Git. Before any analysis
+run, create a local manifest with its SHA-256, byte size, record count, source
+and schema version. Do not upload raw or merely pseudonymized text to a
+third-party API without an approved data-processing decision.
+
+The repository includes one fully synthetic fixture:
 
 ```bash
-# Export MongoDB first: mongoexport --collection <c> --db <db> --out complaints.jsonl
-python -m analysis.stats complaints.jsonl --markdown report.md
+python -m tests.test_analysis
+python -m analysis.stats data/sample_complaints.jsonl
 ```
 
-- `analysis/official_parser.py` — parses each `official_text` verdict into structured fields: verdict (构成/不构成), cited rulebook + articles (第N条), penalties (扣除信用积分/禁言/禁被关注/删除微博/关闭账号), effectiveness delay, credited debunkers. 99.2% coverage on the full dump.
-- `analysis/reporter_features.py` — per-reporter features: account type (government/media/legal/debunker/ordinary), evidence URLs and #微博辟谣# usage in report statements.
-- `analysis/concentration.py` — reporter concentration (Gini/Lorenz/top-K) and type/penalty/rulebook × year crosstabs.
-- `analysis/reporter_profiles.py` — case-study profiles of top serial reporters (latency, statement style, targets).
+## Current research claims
 
-**LLM-as-adjudicator benchmark** (direction A: can an LLM reproduce the platform's rulings?):
+The reports in `docs/` are exploratory outputs from an off-repository dump.
+They are not independently reproducible from the current checkout and should
+not be cited as validated results until the revision gates in
+`docs/revision_protocol.md` are complete.
+
+The consolidated review findings, their disposition, and the ordered remaining
+work are tracked in `docs/review_and_todos.md`.
+
+Two directions remain under development:
+
+1. Describing reporters visible in the public complaint archive. This must be
+   limited to the visible-report estimand and audited for the 20-reporter page
+   cap, missing timestamps and identity resolution.
+2. Comparing LLM adjudications with historical platform outcomes. The 40-case
+   pilot is exploratory; a frozen, paired, preregistered API experiment has not
+   yet been run.
+
+## Safety checks
+
+Before committing any data-like artifact:
 
 ```bash
-python -m benchmark.build_benchmark complaints.jsonl instances.jsonl   # pseudonymized instances (35,187)
-python -m benchmark.sample instances.jsonl sample.jsonl --per-stratum 34  # stratify by rulebook generation
-pip install anthropic pydantic && export ANTHROPIC_API_KEY=...
-python -m benchmark.run_eval sample.jsonl --limit 100 [--rules xize.md]
-python -m benchmark.score sample.jsonl predictions.jsonl               # score any predictions (LLM or human)
+python scripts/scan_sensitive_artifacts.py
+python -m tests.test_analysis
 ```
 
-The eval shows Claude the same case materials the platform saw (reported post + reporter statements) and scores agreement with the real ruling on verdict, cited articles and penalties. `--rules` prepends the full 细则 text (policy-as-prompt condition). A 40-case blind pilot is documented in [docs/pilot_eval.md](docs/pilot_eval.md): verdict agreement 97.5%, penalty-type Jaccard 53%.
+The scanner is a release guard, not proof of anonymization. Human privacy and
+ethics review remains mandatory.
 
-Tests: `python -m tests.test_analysis`
+## Historical data source
 
-### Data Source
-
-[微博社区管理中心(Weibo Community Managment Center)](http://service.account.weibo.com/) (now https: https://service.account.weibo.com/)
-
-### Dataset (36,075, up to 2018-08-30)
-
-- [Baidu](https://pan.baidu.com/s/1raeGg5giL4ov8kJqxqpg5g)
-- code: 1024
-
-Sample:
-
-```mongodb
-{ 
-    "_id" : ObjectId("5b9b5f0219172c1ee4ec682d"), 
-    "url" : "http://service.account.weibo.com/show?rid=K1CaP8wxf7K4j", 
-    "title" : "@yvonne爱吃可丽饼 举报@每日上海 不实信息", 
-    "reports" : [
-        {
-            "reporter_url" : "http://weibo.com/u/6154858995", 
-            "reporter_name" : "漳州普法", 
-            "reporter_img_url" : "https://tvax1.sinaimg.cn/crop.6.8.86.86.50/006Ix9Zhly8fd75vcxu9oj302s02sglq.jpg", 
-            "reporter_gender" : "male", 
-            "reporter_location" : "福建 漳州", 
-            "reporter_description" : "漳州普法官方微博", 
-            "report_time" : "2018-08-30 12:47", 
-            "report_text" : "漳州普法：#微博辟谣# 不实消息，公安机关已经辟谣！ ."
-        }, 
-        {
-            "reporter_url" : "http://weibo.com/u/2126421215", 
-            "reporter_name" : "疯丫头小Ann", 
-            "reporter_img_url" : "https://tva3.sinaimg.cn/crop.0.0.640.640.50/7ebe9cdfjw8eg2ht89dz0j20hs0hs74s.jpg", 
-            "reporter_gender" : "female", 
-            "reporter_location" : "海外 新加坡", 
-            "reporter_description" : "酷爱彩妆，护肤！坡县幸福小吃货一枚！", 
-            "report_time" : "2018-08-30 12:03", 
-            "report_text" : "疯丫头小Ann：#微博辟谣# 有人辟谣了 实际发生地点与人物都和宣传文案不一致 ."
-        }, 
-        {
-            "reporter_url" : "http://weibo.com/u/1433584002", 
-            "reporter_name" : "yvonne爱吃可丽饼", 
-            "reporter_img_url" : "https://tvax1.sinaimg.cn/crop.0.0.1125.1125.50/5572c182ly8futbpkmiq3j20v90v9acv.jpg", 
-            "reporter_gender" : "female", 
-            "reporter_location" : "海外 美国", 
-            "reporter_description" : "Love is just a word until someone special gives it a meaning.", 
-            "report_time" : "2018-08-30 10:57", 
-            "report_text" : "yvonne爱吃可丽饼：#微博辟谣# 假信息 ."
-        }
-    ], 
-    "actual_reporter_count" : NumberInt(3), 
-    "rumor" : {
-        "rumorer_name" : "每日上海", 
-        "rumorer_url" : "http://weibo.com/u/2128372947", 
-        "rumorer_gender" : "female", 
-        "rumorer_location" : "上海", 
-        "rumorer_description" : "关注每日上海，乐享潮流资讯。合作联系+Q: 2605326688", 
-        "rumor_time" : "2018-08-30 09:58:32", 
-        "rumor_url" : "http://weibo.com/2128372947/Gx0aVsVJp", 
-        "rumor_text" : "每日上海 ：2018年情人节当天，位于安徽省芜湖广电大厦地下停车场内，42岁女主播与54岁副总编在车内讨论工作，结果由于车内空间狭小，男的太激动，导致突发心梗去世…[doge]"
-    }, 
-    "official" : {
-        "official_text" : "经查，此微博称“位于安徽省芜湖广电大厦地下停车场内，42岁女主播与54岁副总编在车内讨论工作，导致突发心梗去世”不实。@德州运河公安分局 已辟谣：视频中并非芜湖广电大厦地下停车场，且该单位未发生副总编死亡事件 。详情：https://weibo.com/2403912521/Gw7zhxxIm 。被举报人言论构成“发布不实信息”。现根据《微博举报投诉操作细则》（http://service.account.weibo.com/roles/xize ）第19条，对被举报人处理如下：扣除信用积分2分。上述处理在公布后60分钟内生效。"
-    }, 
-    "looks" : [
-        [
-            "http://weibo.com/u/5872248592", 
-            "simoncV"
-        ], 
-        [
-            "http://weibo.com/u/3221034714", 
-            "爱吃肉的牙牙兔"
-        ], 
-        [
-            "http://weibo.com/u/6683056792", 
-            "mustard178"
-        ], 
-        [
-            "http://weibo.com/u/2102315083", 
-            "_周涵_"
-        ], 
-        [
-            "http://weibo.com/u/5836275950", 
-            "决恋星辰98217"
-        ], 
-        [
-            "http://weibo.com/u/1710759290", 
-            "independencei989"
-        ], 
-        [
-            "http://weibo.com/u/1347280187", 
-            "克服进化论的朱Sir"
-        ], 
-        [
-            "http://weibo.com/u/6554443743", 
-            "电影大鸟"
-        ], 
-        [
-            "http://weibo.com/u/6496363207", 
-            "Henry_Han_IPR"
-        ], 
-        [
-            "http://weibo.com/u/6075978015", 
-            "一个为生活发声的地方"
-        ], 
-        [
-            "http://weibo.com/u/2751779283", 
-            "土豪榜叔"
-        ], 
-        [
-            "http://weibo.com/u/6341984206", 
-            "诸葛亮亮律师"
-        ], 
-        [
-            "http://weibo.com/u/1578078673", 
-            "一脉印象"
-        ], 
-        [
-            "http://weibo.com/u/5649081220", 
-            "风乎舞雩_KAZE"
-        ], 
-        [
-            "http://weibo.com/u/6222824749", 
-            "起个什么名字好呢-02"
-        ], 
-        [
-            "http://weibo.com/u/5498125999", 
-            "即刻"
-        ], 
-        [
-            "http://weibo.com/u/2242945720", 
-            "快拉脱离"
-        ], 
-        [
-            "http://weibo.com/u/5850456137", 
-            "阳光七星投资集团"
-        ], 
-        [
-            "http://weibo.com/u/2081309513", 
-            "1Freekiwi"
-        ], 
-        [
-            "http://weibo.com/u/1742335401", 
-            "啊呦喂-嘿"
-        ], 
-        [
-            "http://weibo.com/u/1961261875", 
-            "有法依"
-        ], 
-        [
-            "http://weibo.com/u/1447685703", 
-            "朝来夕去"
-        ], 
-        [
-            "http://weibo.com/u/1815608542", 
-            "严MI"
-        ], 
-        [
-            "http://weibo.com/u/2074743167", 
-            "BiuBiuBiu-021"
-        ], 
-        [
-            "http://weibo.com/u/3975175672", 
-            "腹肌工场"
-        ]
-    ]
-}
-```
+The source was the Weibo Community Management Center at
+`service.account.weibo.com`. The original Baidu share and collected dump are
+not treated as publication authorization. Redistribution, platform terms,
+research ethics and data-subject risk require a separate documented review.

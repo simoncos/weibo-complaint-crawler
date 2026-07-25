@@ -1,0 +1,13 @@
+{
+  "approval_version": 1,
+  "approved": false,
+  "approval_id": "PENDING_REVIEW_DECISION",
+  "purpose": "historical-adjudication-benchmark",
+  "provider": "anthropic",
+  "allowed_models": [
+    "PENDING_FROZEN_MODEL_ID"
+  ],
+  "approved_input_sha256": "PENDING_FROZEN_INPUT_SHA256",
+  "expires_on": "PENDING_YYYY-MM-DD",
+  "notes": "Complete outside the repository through the applicable ethics and data-processing review."
+}

@@ -1,0 +1,29 @@
+{
+  "manifest_version": 1,
+  "dataset_id": "weibo-cmc-complaints-2012-2018",
+  "classification": "restricted-research-data",
+  "file_name": "HK_DEV.WEIBO_COMPLAINT.json",
+  "format": "mongo-shell-export",
+  "bytes": null,
+  "sha256": "PENDING_LOCAL_DUMP",
+  "record_count": null,
+  "top_level_fields": [
+    "_id",
+    "actual_reporter_count",
+    "looks",
+    "official",
+    "reports",
+    "rumor",
+    "title",
+    "url"
+  ],
+  "schema_version": "legacy-v1",
+  "collection": {
+    "source": "Weibo Community Management Center",
+    "collected_through": "2018-08-30"
+  },
+  "code_commit": "PENDING_GENERATION_COMMIT",
+  "code_dirty": null,
+  "generated_at": null,
+  "release_approved": false
+}

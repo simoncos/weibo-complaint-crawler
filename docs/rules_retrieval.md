@@ -1,64 +1,51 @@
-# 三代规章全文的找回方案（policy-as-prompt 素材）
+# Historical policy retrieval and verification
 
-## 状态
+Policy-as-prompt evaluation is blocked until every policy text and exact
+effective interval is human verified.
 
-本会话环境的网络白名单拦截了 web.archive.org 与所有中文镜像站
-（curl 与 WebFetch 均 403，仅搜索摘要可用——转述文本不可作为逐字条文来源），
-因此规章全文需在环境外抓取。判决文书中引用的原始 URL 已从全量数据提取
-（这是精确的抓取靶点）：
-
-| 引用次数 | 原始 URL | 对应规章 | 建议快照时点 |
-|---|---|---|---|
-| 6,339 | `http://weibo.com/z/guize/guiding.html` | 《新浪微博社区管理规定(试行)》 | 2013 年年中 |
-| 23,174 | `http://service.account.weibo.com/roles/guiding` | 《微博社区管理规定(试行)》→《微博社区管理规定》**（同一 URL，内容随版本变化）** | 2015 年初 + 2016 年年中各取一份 |
-| 1,439 | `http://service.account.weibo.com/roles/xize` | 《微博举报投诉操作细则》 | 2018 年年中 |
-| 4 | `http://service.account.weibo.com/roles/banfa` | （罕见引用的处理办法） | 2018 年 |
-
-## 抓取方式
-
-**方式一（推荐）：在本地跑现成脚本**
+## Retrieval
 
 ```bash
-pip install requests beautifulsoup4
 python scripts/fetch_rules.py --out data/rules
 ```
 
-脚本自动通过 Wayback CDX API 选取最接近目标日期的快照，落盘为
-`data/rules/<label>.txt` + 溯源信息 `<label>.meta.json`。
+The script now:
 
-**方式二：浏览器手动**，逐个打开：
+- calculates snapshot distance with calendar dates;
+- searches a bounded three-year CDX window;
+- fails on HTTP/retrieval errors;
+- checks minimum text size and the expected main article;
+- records snapshot provenance and text SHA-256;
+- exits non-zero if any target fails.
 
-- `https://web.archive.org/web/2013/http://weibo.com/z/guize/guiding.html`
-- `https://web.archive.org/web/20150301/http://service.account.weibo.com/roles/guiding`
-- `https://web.archive.org/web/20160601/http://service.account.weibo.com/roles/guiding`
-- `https://web.archive.org/web/2018/http://service.account.weibo.com/roles/xize`
+Automated retrieval does not establish the effective dates. The same
+`/roles/guiding` URL changed content, and a nearby snapshot can postdate a
+policy transition.
 
-保存正文文本；像之前的数据集一样打包上传到会话即可。
+## Human verification
 
-**备选来源**（Wayback 缺失时）：百度百科词条
-「新浪微博社区管理规定（试行）」「微博社区公约」通常收录全文；
-新浪 2012-05-09 公约发布时多家媒体（观察者网、浙江在线、中国互联网协会）
-转载过第一代全文。
+For each retrieved text:
 
-## 拿到全文后的验证清单
+1. compare the title and revision date with independent primary-source
+   evidence;
+2. verify the definition, main false-information article and sanction table;
+3. record exact non-overlapping `effective_from`/`effective_to` dates;
+4. confirm the file hash matches its `.meta.json`;
+5. change `human_version_verified` only after a second reviewer checks it.
 
-用数据侧解析结果交叉验证条文版本是否正确：
+Expected article checks inherited from archived adjudications are:
 
-1. **gen1**（新浪规定试行）：第22条应为不实信息的处理条款
-   （全量判决中被引用 19,724 次的主罚条款）；
-2. **gen2**：试行版主罚条款仍为第22条；正式版（2015 下半年起）应为第23条
-   （被引 5,866 次）；若快照里条号对不上，说明取到的版本不对，换相邻时间快照；
-3. **gen3**（细则）：第19条应为不实信息处理条款（被引 10,811 次）；
-4. 各代还应包含不实信息的**定义**条款与信用积分/禁言/禁被关注的**量刑**条款
-   ——这三块正是 policy-as-prompt 评测（`benchmark/run_eval.py --rules`）
-   需要喂给模型的内容。
+- first-generation trial rules: Article 22;
+- second-generation trial rules: Article 22;
+- second-generation final rules: Article 23;
+- third-generation complaint rules: Article 19.
 
-## 接入评测
+These checks can reject a wrong snapshot but cannot prove the snapshot is the
+correct version.
 
-验证通过后，把对应年代的规章文本传给评测脚本即可，例如按层分别跑：
+## Benchmark manifest
 
-```bash
-python -m benchmark.run_eval gen3_cases.jsonl --rules data/rules/gen3_xize_2018.txt
-```
-
-（run_eval 的 system prompt 已支持在 `--rules` 中注入全文并做提示缓存。）
+Copy `docs/rules_manifest.example.json` to the restricted execution directory
+and replace every `PENDING_*` field with reviewed dates, source URLs and hashes.
+`benchmark.run_eval --condition policy_prompt` intentionally refuses to run
+with pending, missing, overlapping or hash-mismatched policy periods.

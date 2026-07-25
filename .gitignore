@@ -3,8 +3,26 @@ geckodriver*
 *.txt
 .idea
 __pycache__/
+*.py[cod]
+.env
+.env.*
 
-# full data dump stays out of git (97MB); sample + fetched rule texts are committed
+# Raw and derived research data are restricted and must never be committed.
 data/*.json
 data/*.zip
+data/raw/
+data/derived/
+*.jsonl
+*.ndjson
+eval_results*
+predictions*
+instances*
+samples*
+
+# The only tracked JSONL is a fully synthetic test fixture.
+!data/sample_complaints.jsonl
+!docs/data_manifest.example.json
+
+# Verified historical rule texts may be committed with provenance metadata.
 !data/rules/*.txt
+!data/rules/*.meta.json

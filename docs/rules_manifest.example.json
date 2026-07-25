@@ -1,0 +1,38 @@
+{
+  "manifest_version": 1,
+  "human_version_verified": false,
+  "periods": [
+    {
+      "id": "gen1_sina_guiding_2013",
+      "effective_from": "PENDING_VERIFIED_DATE",
+      "effective_to": "PENDING_VERIFIED_DATE",
+      "file": "../data/rules/gen1_sina_guiding_2013.txt",
+      "sha256": "PENDING_VERIFIED_SHA256",
+      "source": "PENDING_VERIFIED_WAYBACK_URL"
+    },
+    {
+      "id": "gen2_guiding_trial_2015",
+      "effective_from": "PENDING_VERIFIED_DATE",
+      "effective_to": "PENDING_VERIFIED_DATE",
+      "file": "../data/rules/gen2_guiding_trial_2015.txt",
+      "sha256": "PENDING_VERIFIED_SHA256",
+      "source": "PENDING_VERIFIED_WAYBACK_URL"
+    },
+    {
+      "id": "gen2_guiding_2016",
+      "effective_from": "PENDING_VERIFIED_DATE",
+      "effective_to": "PENDING_VERIFIED_DATE",
+      "file": "../data/rules/gen2_guiding_2016.txt",
+      "sha256": "PENDING_VERIFIED_SHA256",
+      "source": "PENDING_VERIFIED_WAYBACK_URL"
+    },
+    {
+      "id": "gen3_xize_2018",
+      "effective_from": "PENDING_VERIFIED_DATE",
+      "effective_to": "PENDING_VERIFIED_DATE",
+      "file": "../data/rules/gen3_xize_2018.txt",
+      "sha256": "PENDING_VERIFIED_SHA256",
+      "source": "PENDING_VERIFIED_WAYBACK_URL"
+    }
+  ]
+}

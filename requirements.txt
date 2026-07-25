@@ -1,3 +1,5 @@
+# Legacy crawler dependencies only. This file is not a reproducible lock and
+# must not be used for the formal benchmark environment.
 requests
 beautifulsoup4
 scrapy
