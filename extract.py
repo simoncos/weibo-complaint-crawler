@@ -1,7 +1,6 @@
 import traceback
 import time
 import re
-from selenium.common.exceptions import StaleElementReferenceException
 from conf import SLEEP_NEXT_REPORTER, SLEEP_NEXT_REPORTS_PAGE, REPORTER_MAX_ITER
 
 def extractReporter(driver):

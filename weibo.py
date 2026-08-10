@@ -3,15 +3,26 @@
 # from gevent import spawn, joinall
 import multiprocessing as mp
 
-import os, sys
+import os
+import tempfile
 import numpy as np
-from driver import getDriver
+try:
+    from driver import getDriver
+except ImportError:  # Allow the offline tests to run without browser packages.
+    getDriver = None
 from conf import ACCOUNT, PWD, IMPLICIT_WAIT_DRIVER, SLEEP_NEXT_COMPLAINTS_PAGE, SLEEP_NEXT_COMPLAINT, \
                  RETRY_COMPLAINT_DETAIL_TIMEOUT_COUNT, RESTART_EXCEPTION_COUNT, RESTART_TIMEOUT_EXCEPTION_COUNT,\
                  SAVE_COMPAINT_BATCH, N_WORKER, WEB_DRIVER
-from mongo import MongoHelper
+try:
+    from mongo import MongoHelper
+except ImportError:  # Allow the offline tests to run without a Mongo client.
+    MongoHelper = None
 from extract import *
-from selenium.common.exceptions import TimeoutException
+try:
+    from selenium.common.exceptions import TimeoutException
+except ImportError:
+    class TimeoutException(Exception):
+        """Offline fallback used only when Selenium is not installed."""
 
 def login(driver):
     # Login
@@ -27,17 +38,70 @@ def login(driver):
     time.sleep(1)
     print('>> Successfully Logged In!')
 
-def getComplaintUrls(driver):
+def _stable_unique_urls(urls):
+    """Return non-empty URLs once, preserving their first-seen order."""
+    result = []
+    seen = set()
+    for raw_url in urls:
+        url = raw_url.strip()
+        if url and url not in seen:
+            seen.add(url)
+            result.append(url)
+    return result
+
+
+def _read_url_checkpoint(path='complaint_urls.txt'):
+    try:
+        with open(path) as checkpoint:
+            return _stable_unique_urls(checkpoint)
+    except FileNotFoundError:
+        return []
+
+
+def _write_url_checkpoint(urls, path='complaint_urls.txt'):
+    """Atomically replace the checkpoint with a de-duplicated URL manifest."""
+    urls = _stable_unique_urls(urls)
+    checkpoint_dir = os.path.dirname(os.path.abspath(path))
+    fd, temporary_path = tempfile.mkstemp(
+        prefix='.complaint_urls.', suffix='.tmp', dir=checkpoint_dir, text=True)
+    try:
+        with os.fdopen(fd, 'w') as checkpoint:
+            if urls:
+                checkpoint.write('\n'.join(urls) + '\n')
+        os.replace(temporary_path, path)
+    except Exception:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _find_next_complaints_page(driver):
+    """Find a control that explicitly identifies itself as the next page."""
+    candidates = driver.find_elements_by_xpath('//a[contains(@class, "W_btn_c")]')
+    for candidate in candidates:
+        label = (getattr(candidate, 'text', '') or '').strip().lower()
+        rel = (candidate.get_attribute('rel') or '').strip().lower()
+        title = (candidate.get_attribute('title') or '').strip().lower()
+        if rel == 'next' or label in ('下一页', 'next') or title in ('下一页', 'next'):
+            return candidate
+    return None
+
+
+def getComplaintUrls(driver, checkpoint_path='complaint_urls.txt', sleep_fn=time.sleep):
 
     # Enter http://service.account.weibo.com
     driver.get('http://service.account.weibo.com/?type=5&status=4')
     page_count = 1
+    complaint_urls = _read_url_checkpoint(checkpoint_path)
+    seen_urls = set(complaint_urls)
+    seen_pages = set()
     print('>> Begin Crawling Complaint Urls...')
     while True:
-        # TODO: if page_count > total, break
         # Iterate list in each page
         print(f'>>>> Page: {page_count}')
-        complaint_urls = []
+        page_urls = []
         for info in driver.find_elements_by_xpath('//div[@id="pl_service_showcomplaint"]/table[@class="m_table"]'
                                                   '/tbody/tr[not(@class)]'):
             # print(info.text)
@@ -46,22 +110,34 @@ def getComplaintUrls(driver):
             #       info.find_element_by_xpath('td[4]/a').text,
             #       )
             # print(info.find_element_by_xpath('td[2]/div[@class="m_table_tit"]/a').get_attribute('href'))
-            complaint_urls.append(info.find_element_by_xpath('td[2]/div[@class="m_table_tit"]/a').get_attribute('href'))
+            page_urls.append(info.find_element_by_xpath(
+                'td[2]/div[@class="m_table_tit"]/a').get_attribute('href'))
 
-        try:
-            # Next page
-            next = driver.find_element_by_xpath('//a[@class="W_btn_c"][last()]') # if already at last page, will click 上一页
-        except:
+        page_urls = _stable_unique_urls(page_urls)
+        page_signature = tuple(page_urls)
+        if page_signature in seen_pages:
+            print('>>>> Repeated page detected; stopping pagination')
+            break
+        seen_pages.add(page_signature)
+
+        for url in page_urls:
+            if url not in seen_urls:
+                seen_urls.add(url)
+                complaint_urls.append(url)
+
+        print('>>>> Writing to Files...')
+        _write_url_checkpoint(complaint_urls, checkpoint_path)
+
+        next_page = _find_next_complaints_page(driver)
+        if next_page is None:
             print('Next page not found')
             break
 
-        print('>>>> Writing to Files...')
-        with open('complaint_urls.txt', 'a') as f:
-            f.write('\n'.join(complaint_urls) + '\n')
-
-        time.sleep(SLEEP_NEXT_COMPLAINTS_PAGE)
-        next.click()
+        next_page.click()
+        sleep_fn(SLEEP_NEXT_COMPLAINTS_PAGE)
         page_count += 1
+
+    return complaint_urls
 
 def getComplaintDetail(url, driver, driver_no, retry=0):
     try:
@@ -102,59 +178,83 @@ def getComplaintDetail(url, driver, driver_no, retry=0):
         'looks': looks
     }
 
-def restart_program():
-  python = sys.executable
-  os.execl(python, python, * sys.argv)
+def _quit_driver(driver):
+    if driver is None:
+        return
+    try:
+        driver.quit()
+    except Exception:
+        print('>>>> Driver shutdown failed')
+
+
+def _new_logged_in_driver(driver_no):
+    if getDriver is None:
+        raise RuntimeError('Selenium is required for live crawling')
+    driver = getDriver(driver=WEB_DRIVER, driver_no=driver_no)
+    try:
+        login(driver)
+    except Exception:
+        _quit_driver(driver)
+        raise
+    return driver
+
+
+def _flush_complaints(mongo, complaints, driver_no):
+    if not complaints:
+        return
+    complaint_count = len(complaints)
+    mongo.update(complaints)
+    complaints.clear()
+    print(f'\n[{driver_no}] >> Wrote {complaint_count} complaints to mongo')
 
 def getComplaintDetails(urls, driver_no):
-    driver = getDriver(driver=WEB_DRIVER, driver_no=driver_no)
-    login(driver)
-    print(f'[{driver_no}] >> Begin Crawling Complaint Details for {len(urls)} pages...')
-
+    if MongoHelper is None:
+        raise RuntimeError('PyMongo is required for live crawling')
+    driver = None
     mongo = MongoHelper()
     complaints = []
     exception_count = 0
     timeout_exception_count = 0
     page_count = 0
-    for url in urls:
-        # restart when come across too many timeouts
-        if timeout_exception_count >= RESTART_TIMEOUT_EXCEPTION_COUNT:
-            print(f'[{driver_no}] >> Timeout Excepiton reach {RESTART_EXCEPTION_COUNT}, trying to restart program!')
-            restart_program()
-        elif exception_count >= RESTART_EXCEPTION_COUNT:
-            print(f'[{driver_no}] >> Exception reach {RESTART_EXCEPTION_COUNT}, trying to restart program!')
-            restart_program()
+    try:
+        driver = _new_logged_in_driver(driver_no)
+        print(f'[{driver_no}] >> Begin Crawling Complaint Details for {len(urls)} pages...')
 
-        page_count += 1
-        print(f'\n[{driver_no}] >>>> Complaint {page_count}, URL: {url}')
-        try:
-            time.sleep(SLEEP_NEXT_COMPLAINT)
-            complaint = getComplaintDetail(url, driver, driver_no)
-            print(complaint)
-            complaints.append({'url': url, **complaint})
-        except Exception as e:
-            print(f'[{driver_no}] >>>> Got Exception: {traceback.format_exc()}, URL: {url}')
-            exception_count += 1
-            if type(e) == TimeoutException:
-                timeout_exception_count += 1
+        for url in urls:
+            # Recycle only this worker's browser. Persist successful buffered
+            # records first so recovery cannot discard the current checkpoint.
+            if (timeout_exception_count >= RESTART_TIMEOUT_EXCEPTION_COUNT or
+                    exception_count >= RESTART_EXCEPTION_COUNT):
+                _flush_complaints(mongo, complaints, driver_no)
+                _quit_driver(driver)
+                driver = None
+                print(f'[{driver_no}] >> Recycling browser after repeated exceptions')
+                driver = _new_logged_in_driver(driver_no)
+                exception_count = 0
+                timeout_exception_count = 0
 
-        complaint_count = len(complaints)
-        if complaint_count == SAVE_COMPAINT_BATCH:
-            print(f'\n[{driver_no}] >> Writing {complaint_count} complaints to mongo...')
-            mongo.update(complaints)
-            complaints = []
+            page_count += 1
+            print(f'\n[{driver_no}] >>>> Complaint {page_count}')
+            try:
+                time.sleep(SLEEP_NEXT_COMPLAINT)
+                complaint = getComplaintDetail(url, driver, driver_no)
+                complaints.append({'url': url, **complaint})
+            except Exception as e:
+                print(f'[{driver_no}] >>>> Got Exception: {traceback.format_exc()}')
+                exception_count += 1
+                if type(e) == TimeoutException:
+                    timeout_exception_count += 1
 
-    # update remaining results
-    if len(complaints) != 0:
-        mongo.update(complaints)
-        print(f'\n[{driver_no}] >> Writing {len(complaints)} complaints to mongo...')
-    else:
-        pass
-    print(f'[{driver_no}] >> All Complaints Crawling Completed!')
+            if len(complaints) >= SAVE_COMPAINT_BATCH:
+                _flush_complaints(mongo, complaints, driver_no)
+
+        _flush_complaints(mongo, complaints, driver_no)
+        print(f'[{driver_no}] >> All Complaints Crawling Completed!')
+    finally:
+        _quit_driver(driver)
 
 def getComplaintDetailsMultiWorker(n_worker):
-    with open('complaint_urls.txt') as f:
-        urls = f.read().split('\n')
+    urls = _read_url_checkpoint('complaint_urls.txt')
     mongo = MongoHelper()
     crawled_urls = mongo.getCrawledUrls()
     todo_urls = [url for url in urls if url not in crawled_urls]
