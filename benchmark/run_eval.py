@@ -14,6 +14,7 @@ import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from benchmark.consumer_recording import record_final_request
 from benchmark.score import normalize_prediction_record
 
 
@@ -221,26 +222,85 @@ def response_text(response):
         if getattr(block, 'type', None) == 'text' and getattr(block, 'text', None))
 
 
-def run_case(client, record, model, system, max_tokens, max_attempts):
-    user_prompt = render_case(record)
+def sdk_arguments_for(record, model, system, max_tokens):
+    return {
+        'model': model,
+        'max_tokens': max_tokens,
+        'temperature': 0,
+        'system': system,
+        'messages': [{'role': 'user', 'content': render_case(record)}],
+    }
+
+
+def safe_request_record(arguments):
+    return record_final_request(
+        arguments, api_flavor='anthropic-messages',
+        representation='sdk_arguments')
+
+
+def reported_usage(response):
+    """Retain only reported counts; missing or invalid counts stay unknown."""
+    usage = getattr(response, 'usage', None)
+    counts = {}
+    for key in ('input_tokens', 'output_tokens',
+                'cache_creation_input_tokens', 'cache_read_input_tokens'):
+        value = (usage.get(key) if isinstance(usage, dict)
+                 else getattr(usage, key, None))
+        counts[key] = value if type(value) is int and value >= 0 else None
+    return counts
+
+
+def run_case(client, record, model, system, max_tokens, max_attempts,
+             attempt_records=None):
+    """Application retry loop; the caller must disable SDK retries.
+
+    Each attempt is one SDK invocation, not measured HTTP wire traffic. Parse
+    repair reuses the original request, preserving the experimental condition.
+    """
+    if max_attempts <= 0:
+        raise ValueError('max_attempts must be positive')
+    if attempt_records is None:
+        attempt_records = []
     last_error = None
+    trigger = 'initial'
     for attempt in range(1, max_attempts + 1):
+        arguments = sdk_arguments_for(record, model, system, max_tokens)
+        entry = {
+            'attempt': attempt,
+            'trigger': trigger,
+            'request_record': safe_request_record(arguments),
+            'outcome': None,
+            'error_type': None,
+            'provider_usage': reported_usage(None),
+            'cost_usd': None,
+        }
+        attempt_records.append(entry)
         try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=0,
-                system=system,
-                messages=[{'role': 'user', 'content': user_prompt}],
-            )
-            if getattr(response, 'stop_reason', None) == 'refusal':
-                return 'refusal', None, attempt, None
-            prediction = parse_model_json(response_text(response), record['case_id'])
-            return 'success', prediction, attempt, None
+            response = client.messages.create(**arguments)
         except Exception as error:  # persisted; SDK/network errors vary by version
-            last_error = f'{type(error).__name__}: {error}'
-            if attempt < max_attempts:
-                time.sleep(min(2 ** (attempt - 1), 8))
+            entry['outcome'] = 'sdk_error'
+            entry['error_type'] = type(error).__name__
+            trigger = 'sdk_error_retry'
+        else:
+            entry['provider_usage'] = reported_usage(response)
+            if getattr(response, 'stop_reason', None) == 'refusal':
+                entry['outcome'] = 'refusal'
+                return 'refusal', None, attempt, None
+            try:
+                prediction = parse_model_json(
+                    response_text(response), record['case_id'])
+            except Exception as error:
+                entry['outcome'] = 'parse_failure'
+                entry['error_type'] = type(error).__name__
+                trigger = 'parse_repair'
+            else:
+                entry['outcome'] = 'success'
+                return 'success', prediction, attempt, None
+        # SDK exception messages and parser errors can contain request/response
+        # text or headers. Persist the category and class only, never str(error).
+        last_error = f"{entry['outcome']}: {entry['error_type']}"
+        if attempt < max_attempts:
+            time.sleep(min(2 ** (attempt - 1), 8))
     return 'error', None, max_attempts, last_error
 
 
@@ -311,6 +371,10 @@ def main(argv=None):
         'condition': args.condition,
         'model': args.model,
         'max_tokens': args.max_tokens,
+        'max_attempts': args.max_attempts,
+        'dry_run': args.dry_run,
+        'retry_executor': 'application',
+        'sdk_max_retries': 0,
         'model_input_sha256': input_sha256,
         'data_processing_approval_id': (
             approval.get('approval_id') if approval else None),
@@ -321,7 +385,7 @@ def main(argv=None):
     if not args.dry_run:
         import anthropic as anthropic_module
         sdk_version = importlib.metadata.version('anthropic')
-        client = anthropic_module.Anthropic()
+        client = anthropic_module.Anthropic(max_retries=0)
 
     planned = 0
     input_case_ids = set()
@@ -346,12 +410,16 @@ def main(argv=None):
                 record, args.condition, rules)
             user_prompt = render_case(record)
             prompt_hash = sha256_text(system + '\n---USER---\n' + user_prompt)
+            attempt_records = []
             if args.dry_run:
                 status, prediction, attempts, error = 'dry_run', None, 0, None
+                request_record = safe_request_record(sdk_arguments_for(
+                    record, args.model, system, args.max_tokens))
             else:
                 status, prediction, attempts, error = run_case(
                     client, record, args.model, system,
-                    args.max_tokens, args.max_attempts)
+                    args.max_tokens, args.max_attempts, attempt_records)
+                request_record = attempt_records[-1]['request_record']
             result = {
                 'case_id': case_id,
                 'status': status,
@@ -365,6 +433,15 @@ def main(argv=None):
                     'temperature': 0,
                     'max_tokens': args.max_tokens,
                     'attempts': attempts,
+                    'max_attempts': args.max_attempts,
+                    'dry_run': args.dry_run,
+                    'retry_executor': 'application',
+                    'sdk_max_retries': 0,
+                    'sdk_call_attempts': len(attempt_records),
+                    'attempt_records': attempt_records,
+                    'request_record': request_record,
+                    'request_record_stage': (
+                        'planned_sdk_arguments' if args.dry_run else 'before_sdk_call'),
                     'prompt_sha256': prompt_hash,
                     'model_input_sha256': input_sha256,
                     'data_processing_approval_id': (

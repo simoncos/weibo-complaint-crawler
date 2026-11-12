@@ -81,6 +81,40 @@ Use `--dry-run` first. Each planned case produces one success, refusal, error or
 dry-run record; failures remain in the denominator and outputs are never
 silently overwritten.
 
+The application owns retries and constructs `Anthropic(max_retries=0)`.
+`--max-attempts` (default 3) bounds SDK invocations per case, including both SDK
+errors and parse repair. Parse repair repeats the same condition and messages;
+it is a new model response attempt, not an HTTP retry of a failed transport.
+Refusals are terminal. Per-attempt `trigger` and `outcome` distinguish these
+paths; `attempts` retains its existing meaning and `sdk_call_attempts` makes
+the observed SDK count explicit. This count does not measure live wire traffic.
+
+`run.request_record` and every `run.attempt_records[].request_record` describe
+final **SDK arguments** at the `messages.create` boundary. They contain a
+complete-object digest and a safe parameter projection, never prompt/system
+text or SDK exception messages. Dry-run records are explicitly planned
+arguments with zero calls. The inherited `prompt_sha256` algorithm is unchanged;
+the new digest neither replaces it nor reconstructs historical requests.
+Reported usage counts are retained per attempt as supplied by the SDK;
+missing counts and all unpriced costs are `null`. Anthropic cache counts stay
+separate; raw `input_tokens` is not relabeled as a calibrated full-prompt count.
+Existing `pred.reasoning_summary` remains a restricted research output subject
+to the data-governance gate; safe metadata does not authorize publishing it.
+
+Resume checks include retry configuration and dry-run mode. Results from before
+this recording change lack that evidence and cannot be resumed by this runner;
+retain them unchanged and use a separate output/run for a new experiment. No
+historical records are backfilled. All data-processing and human-verified rule
+requirements above still apply.
+
+Offline verification (synthetic inputs only):
+
+```bash
+python -B -m tests.test_run_eval_offline
+python -B -m tests.test_analysis
+python -B scripts/scan_sensitive_artifacts.py
+```
+
 ## Preregistered outcomes
 
 Primary outcomes:

@@ -62,7 +62,14 @@ Before committing any data-like artifact:
 ```bash
 python scripts/scan_sensitive_artifacts.py
 python -m tests.test_analysis
+python -B -m tests.test_run_eval_offline
 ```
+
+The offline runner check uses a synthetic SDK and transport, requires no
+Anthropic SDK or API key, and blocks network connections. It verifies safe
+request metadata, retry bounds, failure denominators, resume and dry-run.
+See [the integration handoff](docs/llm-recording-handoff-2026-10-03.md) for
+recording provenance and evidence limits.
 
 The scanner is a release guard, not proof of anonymization. Human privacy and
 ethics review remains mandatory.
